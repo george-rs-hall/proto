@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wallet</title>
+<style>
+:root {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --panel-2: #f8f9fb;
+  --border: #e3e6eb;
+  --text: #15181e;
+  --muted: #646b78;
+  --faint: #9aa1ad;
+  --mono-bg: #f1f3f6;
+  --accent: #3b5bdb;
+  --accent-text: #ffffff;
+  --pay: #1f9d55; --pay-bg: #e6f6ec; --pay-text: #126b39;
+  --ask: #d98a00; --ask-bg: #fff4dc; --ask-text: #8a5800;
+  --decline: #d93a3a; --decline-bg: #fdeaea; --decline-text: #a52323;
+  --block: #1b1d22; --block-text: #ffffff;
+  --warn-bg: #fff7e6; --warn-border: #f2c46d;
+  --shadow: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1014;
+    --panel: #171a20;
+    --panel-2: #1c2027;
+    --border: #2a2f38;
+    --text: #e8eaee;
+    --muted: #9aa1ad;
+    --faint: #6b7280;
+    --mono-bg: #0f1216;
+    --accent: #6c8cff;
+    --accent-text: #0e1014;
+    --pay: #3ecf7a; --pay-bg: #12301f; --pay-text: #7ee2a6;
+    --ask: #f2b233; --ask-bg: #33270d; --ask-text: #f7cc73;
+    --decline: #f26464; --decline-bg: #3a1616; --decline-text: #ff9b9b;
+    --block: #000000; --block-text: #ffffff;
+    --warn-bg: #2d2410; --warn-border: #6b5418;
+    --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.mono, code, pre, input.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 18px 16px 40px; }
+header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+header h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; display: flex; align-items: center; gap: 10px; }
+header h1 .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: inline-grid; place-items: center; color: var(--accent-text); font-size: 15px; }
+header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+header p b { color: var(--text); font-weight: 600; }
+.live { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.live.ok .dot { background: var(--pay); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pay) 25%, transparent); }
+.live.err .dot { background: var(--decline); }
+
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
+.panel h2 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 650; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.panel h2 .count { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--faint); }
+.top { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+@media (max-width: 720px) { .top { grid-template-columns: 1fr; } }
+
+form.sign { display: grid; grid-template-columns: 1fr 92px auto; gap: 8px; align-items: end; }
+@media (max-width: 480px) { form.sign { grid-template-columns: 1fr 1fr; } form.sign button { grid-column: 1 / -1; } }
+label { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 3px; }
+input[type=text], input[type=number] {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel-2); color: var(--text); font: inherit;
+}
+input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); outline-offset: 0; border-color: var(--accent); }
+.money-input { position: relative; }
+.money-input span { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.money-input input { padding-left: 22px; }
+button {
+  font: inherit; font-weight: 600; font-size: 13px; border-radius: 8px; padding: 8px 14px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--panel-2); color: var(--text); white-space: nowrap;
+}
+button:hover { filter: brightness(.97); }
+button:disabled { opacity: .55; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.small { padding: 5px 10px; font-size: 12px; }
+button.good { background: var(--pay); border-color: var(--pay); color: #fff; }
+button.bad { background: transparent; border-color: var(--decline); color: var(--decline); }
+.tokenbox { margin-top: 12px; }
+.tokenrow { display: flex; gap: 8px; align-items: stretch; }
+.token {
+  flex: 1; min-width: 0; background: var(--mono-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 9px; font-size: 11.5px; word-break: break-all; max-height: 58px; overflow: auto; color: var(--text);
+}
+.kv { font-size: 12px; color: var(--muted); margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; align-items: baseline; }
+.kv .mono { color: var(--text); font-size: 11.5px; word-break: break-all; }
+.empty { color: var(--faint); font-size: 13px; }
+.err-msg { color: var(--decline); font-size: 12px; margin-top: 6px; }
+
+.facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.fact {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 11px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--panel-2); font-size: 13.5px;
+}
+.fact b { font-weight: 650; }
+.fact .sig { font-size: 11px; font-weight: 650; color: var(--pay-text); background: var(--pay-bg); padding: 1px 7px; border-radius: 999px; }
+.fact.bad .sig { color: var(--decline-text); background: var(--decline-bg); }
+.explain { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 13px; }
+.explain .src { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 650; }
+.explain p { margin: 4px 0 8px; }
+.edges { display: flex; flex-wrap: wrap; gap: 6px; }
+.edge { font-size: 11.5px; padding: 2px 8px; border-radius: 6px; background: var(--mono-bg); border: 1px solid var(--border); color: var(--muted); }
+.edge b { color: var(--text); font-weight: 600; }
+.intent-now { margin-top: 10px; font-size: 12px; color: var(--muted); }
+.intent-now b { color: var(--text); font-weight: 600; }
+
+.section-head { display: flex; justify-content: space-between; align-items: baseline; margin: 18px 2px 10px; }
+.section-head h2 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 650; }
+.section-head .legend { font-size: 12px; color: var(--faint); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; }
+@media (max-width: 440px) { .grid { grid-template-columns: 1fr; } }
+.card {
+  background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--faint);
+  border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); min-width: 0;
+  animation: enter .35s ease-out;
+}
+@keyframes enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.card.pay { border-left-color: var(--pay); }
+.card.ask { border-left-color: var(--ask); }
+.card.decline { border-left-color: var(--decline); }
+.card.block { border-left-color: var(--block); }
+@media (prefers-color-scheme: dark) { .card.block { border-left-color: #ffffff55; } }
+.card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.merchant { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 15px; }
+.mbadge { width: 26px; height: 26px; border-radius: 7px; display: inline-grid; place-items: center; background: var(--panel-2); border: 1px solid var(--border); font-size: 13px; }
+.merchant .time { font-weight: 400; font-size: 11.5px; color: var(--faint); }
+.badge { font-size: 11.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.badge.pay { background: var(--pay); color: #fff; }
+.badge.ask { background: var(--ask); color: #1b1300; }
+.badge.decline { background: var(--decline); color: #fff; }
+.badge.block { background: var(--block); color: var(--block-text); }
+@media (prefers-color-scheme: dark) { .badge.block { box-shadow: inset 0 0 0 1px #ffffff55; } .badge.pay { color: #06210f; } .badge.decline { color: #2a0606; } }
+.badge.none { background: var(--panel-2); color: var(--muted); }
+.cart { margin: 9px 0 8px; font-size: 13.5px; }
+.cart .name { font-weight: 600; }
+.cart .attrs { color: var(--muted); }
+.cart .attrs b { color: var(--text); font-weight: 600; }
+.undoline { margin-top: 5px; display: flex; align-items: center; gap: 8px; }
+.undo { font-size: 12px; font-weight: 650; padding: 2px 9px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
+.undo.free { color: var(--pay-text); background: var(--pay-bg); border-color: transparent; }
+.undo.final { color: var(--ask-text); background: var(--ask-bg); border-color: transparent; }
+.undo-l { font-size: 11px; color: var(--faint); }
+.inject { margin: 6px 0 0; padding: 6px 9px; background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 7px; font-size: 12px; }
+.inject .mono { font-size: 11.5px; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 8px 0; }
+.metric { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 7px; min-width: 0; }
+.metric .l { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.metric .v { font-size: 13.5px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.metric .v.small { font-size: 12px; }
+.metric .bar { height: 3px; border-radius: 2px; background: var(--border); margin-top: 3px; overflow: hidden; }
+.metric .bar i { display: block; height: 100%; background: var(--accent); }
+.metric .bar i.hi { background: var(--decline); }
+.ok { color: var(--pay); }
+.no { color: var(--decline); }
+.warn { color: var(--ask); }
+.rule { font-size: 12.5px; color: var(--muted); margin: 4px 0 0; }
+.rule b { color: var(--text); font-weight: 600; }
+.stripe { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.stripe .left { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.stripe .pi { font-size: 11.5px; color: var(--text); }
+.chip { font-size: 11px; font-weight: 650; padding: 1px 7px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+.chip.hold { color: var(--ask-text); background: var(--ask-bg); border-color: transparent; }
+.chip.charge { color: var(--pay-text); background: var(--pay-bg); border-color: transparent; }
+.chip.st-ok { color: var(--pay-text); background: var(--pay-bg); border-color: transparent; }
+.chip.st-cancel { color: var(--decline-text); background: var(--decline-bg); border-color: transparent; }
+.stripe .right { display: flex; align-items: center; gap: 8px; }
+.countdown { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
+.countdown b { color: var(--text); }
+.nostripe { color: var(--faint); font-size: 12px; }
+
+.bl { display: grid; gap: 8px; }
+.blitem { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--panel-2); }
+.blitem .row1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.blitem .row1 .merchant { font-size: 14px; }
+details summary { cursor: pointer; font-size: 12px; color: var(--muted); margin-top: 6px; }
+details pre { margin: 6px 0 0; padding: 8px 10px; background: var(--mono-bg); border: 1px solid var(--border); border-radius: 8px; font-size: 11px; overflow: auto; max-height: 260px; white-space: pre-wrap; word-break: break-all; }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: top; }
+th { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 650; background: var(--panel-2); position: sticky; top: 0; }
+tr:last-child td { border-bottom: 0; }
+td.wr { white-space: normal; min-width: 150px; max-width: 210px; }
+td .sub, td.sub { color: var(--faint); font-size: 10.5px; }
+td .badge { font-size: 10px; padding: 2px 7px; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.lower { margin-top: 14px; }
+footer { margin-top: 22px; color: var(--faint); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1><span class="logo">&#9670;</span>Wallet</h1>
+      <p><b>Signed intent decides what.</b> A signed undo window decides how sure we need to be.</p>
+    </div>
+    <span id="live" class="live"><span class="dot"></span><span id="live-text">connecting…</span></span>
+  </header>
+
+  <div class="top">
+    <section class="panel">
+      <h2>Sign request</h2>
+      <form class="sign" id="sign-form">
+        <div>
+          <label for="req">Request</label>
+          <input type="text" id="req" value="black jeans, under £80" autocomplete="off">
+        </div>
+        <div>
+          <label for="max">Max</label>
+          <div class="money-input"><span>£</span><input type="number" id="max" value="80" min="1" step="1"></div>
+        </div>
+        <button class="primary" type="submit" id="sign-btn">Sign request</button>
+      </form>
+      <div id="token-area"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Signed memories <span class="count" id="facts-count"></span></h2>
+      <div id="facts"></div>
+      <div id="explain"></div>
+    </section>
+  </div>
+
+  <div class="section-head">
+    <h2>Offers &amp; decisions</h2>
+    <span class="legend" id="rows-count"></span>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div id="grid-empty" class="panel empty" style="display:none">No offers yet. Paste the signed token into the agent and let it shop.</div>
+
+  <section class="panel lower">
+    <h2>Blocklist <span class="count" id="bl-count"></span></h2>
+    <div id="blocklist" class="bl"></div>
+  </section>
+
+  <div class="section-head">
+    <h2>Audit</h2>
+    <span class="legend">one row per offer</span>
+  </div>
+  <div class="tablewrap" id="audit"></div>
+
+  <footer>Every payment keeps a record of why it was allowed.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var LS_KEY = "wallet.signed";
+  var state = { data: null, pending: {}, local: {}, openDetails: {}, signed: null };
+  try { state.signed = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) { state.signed = null; }
+
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(v) {
+    if (v === null || v === undefined) return "";
+    return String(v).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function setHTML(el, html) { if (el && el._h !== html) { el.innerHTML = html; el._h = html; } }
+  function isNum(v) { return typeof v === "number" && isFinite(v); }
+  function money(p) {
+    if (!isNum(p)) return "—";
+    var s = (p / 100).toFixed(2);
+    if (s.slice(-3) === ".00") s = s.slice(0, -3);
+    return "£" + s;
+  }
+  function prob(p) { return isNum(p) ? p.toFixed(2) : "—"; }
+  function shortHash(h) { return h ? String(h).slice(0, 10) + "…" : "—"; }
+  function mLetter(id) { if (!id) return "?"; var s = String(id).replace(/^merchant[-_ ]?/i, ""); return s; }
+  function timeOf(iso) {
+    if (!iso) return "";
+    var d = new Date(iso); if (isNaN(d)) return "";
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+  function human(s) { return String(s || "").replace(/_/g, " "); }
+  function undoTerms(u) {
+    if (!u || typeof u !== "object") return "—";
+    var h = u.window_hours;
+    if (!isNum(h) || h <= 0 || !u.cancel_url) return "final sale";
+    var fee = isNum(u.fee_pence) && u.fee_pence > 0 ? " (" + money(u.fee_pence) + " fee)" : " free";
+    var span = h % 24 === 0 && h >= 168 ? (h / 24) + "-day" : h + "h";
+    return span + fee + " cancel";
+  }
+  function decisionOf(r) { var d = (r && r.decision) || ""; return /^(pay|ask|decline|block)$/.test(d) ? d : "none"; }
+  function firstItem(r) { return (r && Array.isArray(r.items) && r.items[0]) || null; }
+  function cartTotal(items) {
+    if (!Array.isArray(items)) return null;
+    var t = 0, any = false;
+    items.forEach(function (i) { if (i && isNum(i.price_pence)) { t += i.price_pence; any = true; } });
+    return any ? t : null;
+  }
+  function itemsLine(items) {
+    if (!Array.isArray(items) || !items.length) return '<span class="cart attrs">No items</span>';
+    return items.map(function (it) {
+      it = it || {};
+      var attrs = [];
+      if (it.colour) attrs.push("<b>" + esc(it.colour) + "</b>");
+      if (it.waist !== undefined && it.waist !== null) attrs.push("waist <b>" + esc(it.waist) + "</b>");
+      if (it.material) attrs.push("<b>" + esc(it.material) + "</b>");
+      if (isNum(it.price_pence)) attrs.push("<b>" + money(it.price_pence) + "</b>");
+      return '<div><span class="name">' + esc(it.name || "Item") + '</span> <span class="attrs">· ' + attrs.join(" · ") + "</span></div>";
+    }).join("");
+  }
+  function injections(items) {
+    if (!Array.isArray(items)) return "";
+    var d = items.map(function (i) { return i && i.description; }).filter(Boolean);
+    if (!d.length) return "";
+    return d.map(function (t) { return '<div class="inject">Merchant text: <span class="mono">“' + esc(t) + '”</span></div>'; }).join("");
+  }
+  function statusClass(s) {
+    s = String(s || "");
+    if (/cancel|refund|fail/.test(s)) return "st-cancel";
+    if (/succeeded|requires_capture|captured/.test(s)) return "st-ok";
+    return "";
+  }
+  function isUndone(r) { return /cancel|refund/.test(String(r.stripe_status || "")) || (state.local[r.id] && state.local[r.id].undone); }
+  function factLabel(f) {
+    if (!f) return "";
+    if (typeof f === "string") return f;
+    return [human(f.relation), f.object].filter(function (x) { return x !== undefined && x !== null && x !== ""; }).join(" ");
+  }
+  function edgeLabel(e) {
+    if (e === null || e === undefined) return "";
+    if (typeof e === "string") return esc(e);
+    var s = e.subject || e.source || e.from || e.source_node || "";
+    var rel = e.relation || e.relationship_name || e.relationship || e.edge || e.type || "";
+    var o = e.object || e.target || e.to || e.target_node || "";
+    if (typeof s === "object") s = s.name || s.id || "";
+    if (typeof o === "object") o = o.name || o.id || "";
+    if (s || rel || o) return (s ? "<b>" + esc(s) + "</b> " : "") + (rel ? "—" + esc(human(rel)) + "→ " : "") + (o ? "<b>" + esc(o) + "</b>" : "");
+    try { return esc(JSON.stringify(e)); } catch (x) { return ""; }
+  }
+
+  // ---------- sign request ----------
+  function renderToken() {
+    var s = state.signed, html = "";
+    if (s && s.token) {
+      html = '<div class="tokenbox"><label>Signed-intent token for the agent</label>' +
+        '<div class="tokenrow"><div class="token mono" id="token-text">' + esc(s.token) + '</div>' +
+        '<button type="button" class="small" id="copy-btn">' + (state.copied ? "Copied ✓" : "Copy") + "</button></div>" +
+        '<div class="kv">intent hash <span class="mono">' + esc(s.intent_hash || "—") + "</span></div></div>";
+    }
+    if (state.signError) html += '<div class="err-msg">' + esc(state.signError) + "</div>";
+    setHTML($("token-area"), html);
+  }
+  $("sign-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var btn = $("sign-btn");
+    var pounds = parseFloat($("max").value);
+    var body = { request: $("req").value.trim(), max_pence: Math.round((isFinite(pounds) ? pounds : 0) * 100) };
+    btn.disabled = true; btn.textContent = "Signing…"; state.signError = null;
+    fetch("/api/intent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (r) { if (!r.ok) throw new Error("Sign failed (" + r.status + ")"); return r.json(); })
+      .then(function (j) {
+        state.signed = { token: j.token, intent_hash: j.intent_hash, request: body.request };
+        state.copied = false;
+        try { localStorage.setItem(LS_KEY, JSON.stringify(state.signed)); } catch (e) {}
+        poll();
+      })
+      .catch(function (e) { state.signError = e.message || String(e); })
+      .then(function () { btn.disabled = false; btn.textContent = "Sign request"; renderToken(); });
+  });
+  document.addEventListener("click", function (ev) {
+    var t = ev.target.closest && ev.target.closest("button");
+    if (!t) return;
+    if (t.id === "copy-btn") return copyToken();
+    var act = t.getAttribute("data-act");
+    if (act === "undo") return doUndo(t.getAttribute("data-pid"), t.getAttribute("data-row"));
+    if (act === "approve" || act === "reject") return doDecide(t.getAttribute("data-row"), act === "approve");
+  });
+  function copyToken() {
+    var tok = state.signed && state.signed.token; if (!tok) return;
+    var done = function () { state.copied = true; renderToken(); setTimeout(function () { state.copied = false; renderToken(); }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(tok).then(done, function () { fallbackCopy(tok); done(); });
+    } else { fallbackCopy(tok); done(); }
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); } catch (e) {} document.body.removeChild(ta);
+  }
+
+  // ---------- actions ----------
+  function post(url, body) {
+    return fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error((j && j.detail) || ("HTTP " + r.status)); return j; }); });
+  }
+  function doUndo(pid, rowId) {
+    if (!pid) return;
+    state.pending[rowId] = "Undoing…"; render();
+    post("/api/undo", { payment_id: pid })
+      .then(function (j) { state.local[rowId] = { undone: true, status: j && j.status }; })
+      .catch(function (e) { state.local[rowId] = { error: e.message }; })
+      .then(function () { delete state.pending[rowId]; poll(); });
+  }
+  function doDecide(rowId, approve) {
+    state.pending[rowId] = approve ? "Approving…" : "Rejecting…"; render();
+    post("/api/decide", { row_id: rowId, approve: approve })
+      .then(function () { state.local[rowId] = { decided: approve ? "approved" : "rejected" }; })
+      .catch(function (e) { state.local[rowId] = { error: e.message }; })
+      .then(function () { delete state.pending[rowId]; poll(); });
+  }
+
+  // ---------- render ----------
+  function renderFacts(d) {
+    var facts = Array.isArray(d.facts) ? d.facts.filter(Boolean) : [];
+    $("facts-count").textContent = facts.length ? facts.length + " signed by you" : "";
+    var html = facts.length ? '<div class="facts">' + facts.map(function (f) {
+      var ok = !f || typeof f !== "object" || f.verified !== false;
+      return '<span class="fact' + (ok ? "" : " bad") + '"><b>' + esc(factLabel(f)) + '</b><span class="sig">' + (ok ? "✓ signed" : "✗ bad signature") + "</span></span>";
+    }).join("") + "</div>" : '<div class="empty">No signed facts loaded yet.</div>';
+    if (d.intent && d.intent.request) {
+      html += '<div class="intent-now">Current intent: <b>' + esc(d.intent.request) + "</b>" +
+        (isNum(d.intent.max_pence) ? " · max <b>" + money(d.intent.max_pence) + "</b>" : "") +
+        (d.intent_hash ? ' · <span class="mono">' + esc(shortHash(d.intent_hash)) + "</span>" : "") + "</div>";
+    }
+    setHTML($("facts"), html);
+    var ex = d.explanation, eh = "";
+    if (ex && (ex.answer || (Array.isArray(ex.cited) && ex.cited.length))) {
+      eh = '<div class="explain"><div class="src">Cognee · why these facts</div>' +
+        (ex.answer ? "<p>" + esc(ex.answer) + "</p>" : "") +
+        (Array.isArray(ex.cited) && ex.cited.length ? '<div class="edges">' + ex.cited.map(function (e) { return '<span class="edge">' + edgeLabel(e) + "</span>"; }).join("") + "</div>" : "") +
+        "</div>";
+    }
+    setHTML($("explain"), eh);
+  }
+
+  function cardHTML(r) {
+    var dec = decisionOf(r), it = firstItem(r), loc = state.local[r.id] || {}, pend = state.pending[r.id];
+    var sig = r.signature_ok === true ? '<span class="ok">✓ valid</span>' : r.signature_ok === false ? '<span class="no">✗ ' + esc(human(r.check_failure) || "failed") + "</span>" : r.check_failure ? '<span class="no">✗ ' + esc(human(r.check_failure)) + "</span>" : "—";
+    var pm = isNum(r.p_match) ? r.p_match : null, pi = isNum(r.p_injection) ? r.p_injection : null;
+    var html = '<div class="card-top"><div class="merchant"><span class="mbadge">' + esc(mLetter(r.merchant_id)) + '</span>Merchant ' + esc(mLetter(r.merchant_id)) +
+      ' <span class="time">' + esc(timeOf(r.at)) + '</span></div><span class="badge ' + dec + '">' + esc(r.decision || "pending") + "</span></div>";
+    var ut = undoTerms(r.undo);
+    html += '<div class="cart">' + itemsLine(r.items) + '<div class="undoline"><span class="undo ' + (ut === "final sale" ? "final" : ut === "—" ? "" : "free") + '">' + (ut === "final sale" ? "&#10007; " : ut === "—" ? "" : "&#8634; ") + esc(ut) + '</span><span class="undo-l">signed undo terms</span></div>' + injections(r.items) + "</div>";
+    html += '<div class="metrics">' +
+      '<div class="metric"><div class="l">Signature</div><div class="v small">' + sig + "</div></div>" +
+      '<div class="metric"><div class="l">P(match)</div><div class="v">' + prob(pm) + '</div><div class="bar"><i style="width:' + (pm === null ? 0 : Math.round(pm * 100)) + '%"></i></div></div>' +
+      '<div class="metric"><div class="l">P(injection)</div><div class="v' + (pi !== null && pi >= 0.8 ? " no" : "") + '">' + prob(pi) + '</div><div class="bar"><i class="' + (pi !== null && pi >= 0.8 ? "hi" : "") + '" style="width:' + (pi === null ? 0 : Math.round(pi * 100)) + '%"></i></div></div>' +
+      '<div class="metric"><div class="l">Exp. loss</div><div class="v">' + money(r.expected_loss_pence) + "</div></div>" +
+      "</div>";
+    if (r.rule) html += '<div class="rule">Rule: <b>' + esc(r.rule) + "</b></div>";
+
+    // Stripe / actions footer
+    var left = "", right = "";
+    if (r.payment_id) {
+      left = '<span class="chip">Stripe</span><span class="mono pi">' + esc(r.payment_id) + "</span>" +
+        (r.payment_mode ? '<span class="chip ' + esc(r.payment_mode) + '">' + esc(r.payment_mode) + "</span>" : "");
+      var st = loc.status && isUndone(r) && !/cancel|refund/.test(String(r.stripe_status || "")) ? loc.status : r.stripe_status;
+      if (st) left += '<span class="chip ' + statusClass(st) + '">' + esc(st) + "</span>";
+      if (isUndone(r)) {
+        right = '<span class="countdown ok">Undone ✓</span>';
+      } else if (pend) {
+        right = '<button class="small" disabled>' + esc(pend) + "</button>";
+      } else {
+        right = (r.window_ends_at ? '<span class="countdown" data-ends="' + esc(r.window_ends_at) + '"></span>' : "") +
+          '<button class="small bad" data-act="undo" data-pid="' + esc(r.payment_id) + '" data-row="' + esc(r.id) + '">Undo</button>';
+      }
+    } else if (dec === "ask") {
+      if (pend) right = '<button class="small" disabled>' + esc(pend) + "</button>";
+      else if (loc.decided) right = '<span class="countdown">' + esc(loc.decided) + "</span>";
+      else right = '<button class="small bad" data-act="reject" data-row="' + esc(r.id) + '">Reject</button><button class="small good" data-act="approve" data-row="' + esc(r.id) + '">Approve</button>';
+      left = '<span class="nostripe">Waiting for you · nothing in Stripe</span>';
+    } else if (dec === "decline" || dec === "block") {
+      left = '<span class="nostripe">No payment created in Stripe</span>';
+    } else {
+      left = '<span class="nostripe">—</span>';
+    }
+    if (loc.error) left += '<span class="err-msg">' + esc(loc.error) + "</span>";
+    html += '<div class="stripe"><div class="left">' + left + '</div><div class="right">' + right + "</div></div>";
+    return html;
+  }
+
+  function sortedRows(d) {
+    var rows = Array.isArray(d.rows) ? d.rows.filter(Boolean).slice() : [];
+    rows.sort(function (a, b) {
+      var ta = Date.parse(a.at) || 0, tb = Date.parse(b.at) || 0;
+      return ta - tb;
+    });
+    return rows;
+  }
+
+  var cardEls = {};
+  function renderGrid(d) {
+    var rows = sortedRows(d), grid = $("grid");
+    if (d.intent_hash) {
+      var cur = rows.filter(function (r) { return r.intent_hash === d.intent_hash; });
+      if (cur.length) rows = cur;
+    }
+    $("grid-empty").style.display = rows.length ? "none" : "";
+    var counts = {};
+    rows.forEach(function (r) { var k = decisionOf(r); counts[k] = (counts[k] || 0) + 1; });
+    $("rows-count").textContent = rows.length ? ["pay", "ask", "decline", "block"].filter(function (k) { return counts[k]; }).map(function (k) { return counts[k] + " " + k; }).join(" · ") : "";
+    var seen = {};
+    rows.forEach(function (r, i) {
+      var key = String(r.id || ("idx-" + i)); seen[key] = true;
+      var el = cardEls[key];
+      if (!el) { el = document.createElement("div"); cardEls[key] = el; }
+      var cls = "card " + decisionOf(r);
+      if (el.className !== cls) el.className = cls;
+      setHTML(el, cardHTML(r));
+      if (grid.children[i] !== el) grid.insertBefore(el, grid.children[i] || null);
+    });
+    Object.keys(cardEls).forEach(function (k) { if (!seen[k]) { var el = cardEls[k]; if (el.parentNode) el.parentNode.removeChild(el); delete cardEls[k]; } });
+  }
+
+  function renderBlocklist(d) {
+    var bl = Array.isArray(d.blocklist) ? d.blocklist.filter(Boolean) : [];
+    $("bl-count").textContent = bl.length ? bl.length + " blocked" : "";
+    if (!bl.length) { setHTML($("blocklist"), '<div class="empty">No merchants blocked.</div>'); return; }
+    setHTML($("blocklist"), bl.map(function (b) {
+      var key = "bl-" + (b.merchant_id || "");
+      var cart = b.signed_cart || null, payload = cart && (cart.payload || cart);
+      var items = payload && payload.items;
+      var json = ""; try { json = JSON.stringify(cart, null, 2); } catch (e) { json = String(cart); }
+      return '<div class="blitem"><div class="row1"><div class="merchant"><span class="mbadge">' + esc(mLetter(b.merchant_id)) + "</span>Merchant " + esc(mLetter(b.merchant_id)) +
+        ' <span class="time">' + esc(timeOf(b.at)) + '</span></div><div style="display:flex;gap:8px;align-items:center"><span class="chip st-cancel">P(injection) ' + prob(b.p_injection) + '</span><span class="badge block">blocked</span></div></div>' +
+        (items ? '<div class="cart" style="margin:6px 0 0">' + itemsLine(items) + injections(items) + "</div>" : "") +
+        '<details data-key="' + esc(key) + '"' + (state.openDetails[key] ? " open" : "") + "><summary>Flagged signed cart (evidence, signed by the merchant)</summary><pre class=\"mono\">" + esc(json) + "</pre></details></div>";
+    }).join(""));
+  }
+  document.addEventListener("toggle", function (ev) {
+    var t = ev.target; if (t && t.tagName === "DETAILS" && t.dataset.key) state.openDetails[t.dataset.key] = t.open;
+  }, true);
+
+  function renderAudit(d) {
+    var rows = sortedRows(d).reverse();
+    if (!rows.length) { setHTML($("audit"), '<div class="empty" style="padding:12px 14px">No audit rows yet.</div>'); return; }
+    var head = ["Time", "M", "Cart", "Signature", "Facts used", "P(match)", "P(inj)", "Eval", "Undo terms", "Undo cost", "Exp. loss", "Decision", "Rule", "Stripe", "Intent"];
+    var body = rows.map(function (r) {
+      var facts = Array.isArray(r.facts_used) ? r.facts_used.map(factLabel).filter(Boolean).join(", ") : "";
+      var items = Array.isArray(r.items) ? r.items.map(function (i) { i = i || {}; return [i.colour, i.waist !== undefined && i.waist !== null ? "w" + i.waist : "", i.material, isNum(i.price_pence) ? money(i.price_pence) : ""].filter(Boolean).join(" "); }).join("; ") : "";
+      var dec = decisionOf(r);
+      var sig = r.signature_ok === true ? '<span class="ok">✓</span>' : r.signature_ok === false ? '<span class="no">✗</span>' : "—";
+      if (r.check_failure) sig += ' <span class="no">' + esc(human(r.check_failure)) + "</span>";
+      var pay = r.payment_id ? '<span class="mono" title="' + esc(r.payment_id) + '">' + esc(String(r.payment_id).length > 16 ? String(r.payment_id).slice(0, 8) + "…" + String(r.payment_id).slice(-5) : r.payment_id) + "</span> " + esc(r.payment_mode || "") + " · " + esc(r.stripe_status || "—") +
+        (r.window_ends_at ? '<div class="sub">until ' + esc(new Date(r.window_ends_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })) + "</div>" : "") : '<span class="sub">none</span>';
+      return "<tr><td>" + esc(timeOf(r.at)) + "</td><td><b>" + esc(mLetter(r.merchant_id)) + "</b></td><td>" + esc(items) + "</td><td>" + sig + '</td><td class="wr">' + esc(facts || "—") +
+        '</td><td class="num">' + prob(r.p_match) + '</td><td class="num">' + prob(r.p_injection) + "</td><td>" + esc(r.eval_source || "—") + "</td><td>" + esc(undoTerms(r.undo)) +
+        '</td><td class="num">' + money(r.undo_cost_pence) + '</td><td class="num">' + money(r.expected_loss_pence) + '</td><td><span class="badge ' + dec + '">' + esc(r.decision || "—") + '</span></td><td class="wr">' + esc(r.rule || "—") +
+        "</td><td>" + pay + '</td><td class="mono">' + esc(r.intent_hash ? String(r.intent_hash).slice(0, 8) : "—") + "</td></tr>";
+    }).join("");
+    setHTML($("audit"), "<table><thead><tr>" + head.map(function (h) { return "<th>" + h + "</th>"; }).join("") + "</tr></thead><tbody>" + body + "</tbody></table>");
+  }
+
+  function render() {
+    var d = state.data || {};
+    renderToken();
+    renderFacts(d);
+    renderGrid(d);
+    renderBlocklist(d);
+    renderAudit(d);
+    tick();
+  }
+
+  // ---------- countdowns ----------
+  function fmtLeft(ms) {
+    if (ms <= 0) return "window closed";
+    var s = Math.floor(ms / 1000), dd = Math.floor(s / 86400), hh = Math.floor((s % 86400) / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return (dd ? dd + "d " : "") + pad(hh) + ":" + pad(mm) + ":" + pad(ss);
+  }
+  function tick() {
+    var els = document.querySelectorAll("[data-ends]"), now = Date.now();
+    for (var i = 0; i < els.length; i++) {
+      var end = Date.parse(els[i].getAttribute("data-ends"));
+      var txt = isNaN(end) ? "" : (end - now > 0 ? "undo free for <b>" + fmtLeft(end - now) + "</b>" : "window closed");
+      if (els[i]._t !== txt) { els[i].innerHTML = txt; els[i]._t = txt; }
+    }
+  }
+  setInterval(tick, 1000);
+
+  // ---------- polling ----------
+  var inflight = false;
+  function setLive(ok, txt) { var el = $("live"); el.className = "live " + (ok ? "ok" : "err"); $("live-text").textContent = txt; }
+  function poll() {
+    if (inflight) return; inflight = true;
+    fetch("/api/audit", { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (j) { state.data = j || {}; setLive(true, "live"); render(); })
+      .catch(function () { setLive(false, "wallet offline"); if (!state.data) render(); })
+      .then(function () { inflight = false; });
+  }
+  render();
+  poll();
+  setInterval(poll, 1000);
+})();
+</script>
+</body>
+</html>
