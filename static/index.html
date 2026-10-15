@@ -190,7 +190,8 @@ details pre { margin: 6px 0 0; padding: 8px 10px; background: var(--mono-bg); bo
 
 .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
 table { border-collapse: collapse; width: 100%; font-size: 11.5px; }
-th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: top; }
+th, td { padding: 6px 7px; text-align: left; border-bottom: 1px solid var(--border); white-space: normal; overflow-wrap: break-word; vertical-align: top; }
+td .badge, td.num, td .mono { white-space: nowrap; }
 th { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 650; background: var(--panel-2); position: sticky; top: 0; }
 tr:last-child td { border-bottom: 0; }
 td.wr { white-space: normal; min-width: 150px; max-width: 210px; }
@@ -541,19 +542,19 @@ footer { margin-top: 22px; color: var(--faint); font-size: 12px; text-align: cen
   function renderAudit(d) {
     var rows = sortedRows(d).reverse();
     if (!rows.length) { setHTML($("audit"), '<div class="empty" style="padding:12px 14px">No audit rows yet.</div>'); return; }
-    var head = ["Time", "M", "Cart", "Signature", "Facts used", "P(match)", "P(inj)", "Eval", "Undo terms", "Undo cost", "Exp. loss", "Decision", "Rule", "Stripe", "Intent"];
+    var head = ["M", "Cart", "Sig", "Facts used", "P(match)<br>P(inj)", "Undo", "Exp. loss", "Decision", "Rule", "Stripe"];
     var body = rows.map(function (r) {
       var facts = Array.isArray(r.facts_used) ? r.facts_used.map(factLabel).filter(Boolean).join(", ") : "";
       var items = Array.isArray(r.items) ? r.items.map(function (i) { i = i || {}; return [i.colour, i.waist !== undefined && i.waist !== null ? "w" + i.waist : "", i.material, isNum(i.price_pence) ? money(i.price_pence) : ""].filter(Boolean).join(" "); }).join("; ") : "";
       var dec = decisionOf(r);
       var sig = r.signature_ok === true ? '<span class="ok">✓</span>' : r.signature_ok === false ? '<span class="no">✗</span>' : "—";
       if (r.check_failure) sig += ' <span class="no">' + esc(human(r.check_failure)) + "</span>";
-      var pay = r.payment_id ? '<span class="mono" title="' + esc(r.payment_id) + '">' + esc(String(r.payment_id).length > 16 ? String(r.payment_id).slice(0, 8) + "…" + String(r.payment_id).slice(-5) : r.payment_id) + "</span> " + esc(r.payment_mode || "") + " · " + esc(r.stripe_status || "—") +
+      var pay = r.payment_id ? '<span class="mono" title="' + esc(r.payment_id) + '">' + esc(String(r.payment_id).length > 16 ? String(r.payment_id).slice(0, 8) + "…" + String(r.payment_id).slice(-5) : r.payment_id) + "</span><div>" + esc(r.payment_mode || "") + " · " + esc(r.stripe_status || "—") + "</div>" +
         (r.window_ends_at ? '<div class="sub">until ' + esc(new Date(r.window_ends_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })) + "</div>" : "") : '<span class="sub">none</span>';
-      return "<tr><td>" + esc(timeOf(r.at)) + "</td><td><b>" + esc(mLetter(r.merchant_id)) + "</b></td><td>" + esc(items) + "</td><td>" + sig + '</td><td class="wr">' + esc(facts || "—") +
-        '</td><td class="num">' + prob(r.p_match) + '</td><td class="num">' + prob(r.p_injection) + "</td><td>" + esc(r.eval_source || "—") + "</td><td>" + esc(undoTerms(r.undo)) +
-        '</td><td class="num">' + money(r.undo_cost_pence) + '</td><td class="num">' + money(r.expected_loss_pence) + '</td><td><span class="badge ' + dec + '">' + esc(r.decision || "—") + '</span></td><td class="wr">' + esc(r.rule || "—") +
-        "</td><td>" + pay + '</td><td class="mono">' + esc(r.intent_hash ? String(r.intent_hash).slice(0, 8) : "—") + "</td></tr>";
+      return "<tr><td><b>" + esc(mLetter(r.merchant_id)) + '</b><div class="sub">' + esc(timeOf(r.at)) + '</div><div class="sub mono">' + esc(r.intent_hash ? String(r.intent_hash).slice(0, 8) : "") + "</div></td><td>" + esc(items) + "</td><td>" + sig + "</td><td>" + esc(facts || "—") +
+        '</td><td class="num">' + prob(r.p_match) + "<br>" + prob(r.p_injection) + '<div class="sub">' + esc(r.eval_source || "") + "</div></td><td>" + esc(undoTerms(r.undo)) + '<div class="sub">cost ' + money(r.undo_cost_pence) + "</div>" +
+        '</td><td class="num">' + money(r.expected_loss_pence) + '</td><td><span class="badge ' + dec + '">' + esc(r.decision || "—") + "</span></td><td>" + esc(r.rule || "—") +
+        "</td><td>" + pay + "</td></tr>";
     }).join("");
     setHTML($("audit"), "<table><thead><tr>" + head.map(function (h) { return "<th>" + h + "</th>"; }).join("") + "</tr></thead><tbody>" + body + "</tbody></table>");
   }
