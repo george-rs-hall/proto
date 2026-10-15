@@ -51,6 +51,9 @@ def main() -> None:
     ap.add_argument("--no-history", action="store_true", help="only reset and seed")
     args = ap.parse_args()
 
+    from app import money
+    money.clear_demo()
+
     for d in (".cognee", ".wallet"):
         shutil.rmtree(ROOT / d, ignore_errors=True)
     run("scripts.seed")
