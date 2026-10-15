@@ -17,7 +17,7 @@ FACT_TEMPLATES = {
     "avoids_material": "Avoids {}.",
 }
 
-ITEM_FIELDS = ["name", "colour", "waist", "material", "price_pence"]
+ITEM_FIELDS = ["name", "kind", "colour", "waist", "material", "price_pence"]
 
 
 def render_facts(facts: list[dict]) -> list[str]:

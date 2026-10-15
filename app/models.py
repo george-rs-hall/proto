@@ -23,6 +23,8 @@ class CartItem(BaseModel):
     material: str
     price_pence: int
     description: str = ""
+    kind: str = "jeans"
+    image: str = ""
 
 
 class Undo(BaseModel):
