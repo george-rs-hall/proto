@@ -28,11 +28,12 @@ router = APIRouter()
 TOOLS = [
     {"name": "browse_catalogue", "description": "List the products this shop sells.",
      "input_schema": {"type": "object", "properties": {}, "additionalProperties": False}},
-    {"name": "add_to_cart", "description": "Put one product in the cart. Returns the shop's signed cart offer.",
+    {"name": "add_to_cart", "description": "Put one product in the cart. Returns a cart token and the total.",
      "input_schema": {"type": "object", "properties": {"product_id": {"type": "string"}},
                       "required": ["product_id"], "additionalProperties": False}},
-    {"name": "request_payment", "description": "Ask the user's wallet to pay for the current cart. The wallet decides.",
-     "input_schema": {"type": "object", "properties": {}, "additionalProperties": False}},
+    {"name": "request_payment", "description": "Check out a cart: ask the user's wallet to pay for it. The wallet decides.",
+     "input_schema": {"type": "object", "properties": {"cart_token": {"type": "string"}},
+                      "required": ["cart_token"], "additionalProperties": False}},
 ]
 
 
@@ -69,7 +70,8 @@ async def run_tool(name: str, args: dict, ctx: dict, agent: dict, http: httpx.As
         emit(agent, "tool_call", f"Browsing {shop_name}")
         r = await http.get(f"{WALLET_URL}/merchants/{shop}/catalogue")
         r.raise_for_status()
-        return r.json()
+        ctx["catalogue"] = r.json()
+        return ctx["catalogue"]
     if name == "add_to_cart":
         pid = args.get("product_id", "")
         emit(agent, "tool_call", f"Adding {pid} to cart", {"product_id": pid})
@@ -77,16 +79,21 @@ async def run_tool(name: str, args: dict, ctx: dict, agent: dict, http: httpx.As
                             json={"intent_hash": ctx["intent_hash"], "product_id": pid})
         r.raise_for_status()
         offer = r.json()
-        ctx["offer"] = offer
+        cart_token = f"cs_{uuid.uuid4().hex[:6]}"
+        ctx["carts"][cart_token] = offer
         items = (offer.get("payload") or {}).get("items") or []
         total = sum(i.get("price_pence", 0) for i in items)
-        emit(agent, "cart", f"Cart: {', '.join(i.get('name', '?') for i in items)} £{total / 100:.2f}", offer)
-        return {"cart": offer.get("payload")}
+        products = (ctx.get("catalogue") or {}).get("products") or []
+        title = next((p.get("title") for p in products if p.get("id") == pid), pid)
+        emit(agent, "cart", f"Added '{title}' to cart, total £{total / 100:.2f}", offer)
+        return (f"Added '{title}' to cart. Cart {cart_token}, total £{total / 100:.2f}. "
+                "Call request_payment to check out.")
     if name == "request_payment":
-        if not ctx.get("offer"):
-            return {"error": "cart is empty; add a product first"}
+        offer = ctx["carts"].get(args.get("cart_token", ""))
+        if not offer:
+            return {"error": "unknown cart_token; add a product to the cart first"}
         emit(agent, "tool_call", "Asking the wallet to pay")
-        r = await http.post(f"{WALLET_URL}/api/pay", json={"token": ctx["token"], "signed_offer": ctx["offer"]},
+        r = await http.post(f"{WALLET_URL}/api/pay", json={"token": ctx["token"], "signed_offer": offer},
                             timeout=120.0)
         r.raise_for_status()
         row = r.json()
@@ -96,7 +103,7 @@ async def run_tool(name: str, args: dict, ctx: dict, agent: dict, http: httpx.As
 
 
 async def run_agent(run: dict, agent: dict) -> None:
-    ctx = {"token": run["token"], "intent_hash": run["intent_hash"], "offer": None}
+    ctx = {"token": run["token"], "intent_hash": run["intent_hash"], "carts": {}, "catalogue": None}
     try:
         client = anthropic.AsyncAnthropic(api_key=os.environ["LLM_API_KEY"], timeout=60.0)
         messages = [{"role": "user", "content": run["message"]}]
@@ -117,7 +124,8 @@ async def run_agent(run: dict, agent: dict) -> None:
                 for u in uses:
                     try:
                         out = await run_tool(u.name, u.input or {}, ctx, agent, http)
-                        results.append({"type": "tool_result", "tool_use_id": u.id, "content": json.dumps(out)})
+                        results.append({"type": "tool_result", "tool_use_id": u.id,
+                                        "content": out if isinstance(out, str) else json.dumps(out)})
                     except Exception as e:
                         log.exception("tool %s failed", u.name)
                         emit(agent, "error", f"{u.name} failed: {e}")
