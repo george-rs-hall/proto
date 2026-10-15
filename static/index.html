@@ -135,6 +135,7 @@ button.bad { background: transparent; border-color: var(--decline); color: var(-
 @media (prefers-color-scheme: dark) { .card.block { border-left-color: #ffffff55; } }
 .card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .merchant { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 15px; }
+.mbadge.sm { width: 18px; height: 18px; border-radius: 5px; font-size: 11px; vertical-align: middle; }
 .mbadge { width: 26px; height: 26px; border-radius: 7px; display: inline-grid; place-items: center; background: var(--panel-2); border: 1px solid var(--border); font-size: 13px; }
 .merchant .time { font-weight: 400; font-size: 11.5px; color: var(--faint); }
 .badge { font-size: 11.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
@@ -282,6 +283,8 @@ footer { margin-top: 22px; color: var(--faint); font-size: 12px; text-align: cen
   function prob(p) { return isNum(p) ? p.toFixed(2) : "—"; }
   function shortHash(h) { return h ? String(h).slice(0, 10) + "…" : "—"; }
   function mLetter(id) { if (!id) return "?"; var s = String(id).replace(/^merchant[-_ ]?/i, ""); return s; }
+  function mName(o) { return (o && o.merchant_name) || ("Merchant " + mLetter(o && o.merchant_id)); }
+  function inWindow(r) { var end = r && r.window_ends_at ? Date.parse(r.window_ends_at) : NaN; return !isNaN(end) && end > Date.now(); }
   function timeOf(iso) {
     if (!iso) return "";
     var d = new Date(iso); if (isNaN(d)) return "";
@@ -445,7 +448,7 @@ footer { margin-top: 22px; color: var(--faint); font-size: 12px; text-align: cen
     var dec = decisionOf(r), it = firstItem(r), loc = state.local[r.id] || {}, pend = state.pending[r.id];
     var sig = r.signature_ok === true ? '<span class="ok">✓ valid</span>' : r.signature_ok === false ? '<span class="no">✗ ' + esc(human(r.check_failure) || "failed") + "</span>" : r.check_failure ? '<span class="no">✗ ' + esc(human(r.check_failure)) + "</span>" : "—";
     var pm = isNum(r.p_match) ? r.p_match : null, pi = isNum(r.p_injection) ? r.p_injection : null;
-    var html = '<div class="card-top"><div class="merchant"><span class="mbadge">' + esc(mLetter(r.merchant_id)) + '</span>Merchant ' + esc(mLetter(r.merchant_id)) +
+    var html = '<div class="card-top"><div class="merchant"><span class="mbadge">' + esc(mLetter(r.merchant_id)) + '</span>' + esc(mName(r)) +
       ' <span class="time">' + esc(timeOf(r.at)) + '</span></div><span class="badge ' + dec + '">' + esc(r.decision || "pending") + "</span></div>";
     var ut = undoTerms(r.undo);
     html += '<div class="cart">' + itemsLine(r.items) + '<div class="undoline"><span class="undo ' + (ut === "final sale" ? "final" : ut === "—" ? "" : "free") + '">' + (ut === "final sale" ? "&#10007; " : ut === "—" ? "" : "&#8634; ") + esc(ut) + '</span><span class="undo-l">signed undo terms</span></div>' + injections(r.items) + "</div>";
@@ -468,8 +471,12 @@ footer { margin-top: 22px; color: var(--faint); font-size: 12px; text-align: cen
         right = '<span class="countdown ok">Undone ✓</span>';
       } else if (pend) {
         right = '<button class="small" disabled>' + esc(pend) + "</button>";
+      } else if (!r.window_ends_at) {
+        right = '<span class="countdown">final sale · no undo</span>';
+      } else if (!inWindow(r)) {
+        right = '<span class="countdown">window closed · no undo</span>';
       } else {
-        right = (r.window_ends_at ? '<span class="countdown" data-ends="' + esc(r.window_ends_at) + '"></span>' : "") +
+        right = '<span class="countdown" data-ends="' + esc(r.window_ends_at) + '"></span>' +
           '<button class="small bad" data-act="undo" data-pid="' + esc(r.payment_id) + '" data-row="' + esc(r.id) + '">Undo</button>';
       }
     } else if (dec === "ask") {
@@ -529,7 +536,7 @@ footer { margin-top: 22px; color: var(--faint); font-size: 12px; text-align: cen
       var cart = b.signed_cart || null, payload = cart && (cart.payload || cart);
       var items = payload && payload.items;
       var json = ""; try { json = JSON.stringify(cart, null, 2); } catch (e) { json = String(cart); }
-      return '<div class="blitem"><div class="row1"><div class="merchant"><span class="mbadge">' + esc(mLetter(b.merchant_id)) + "</span>Merchant " + esc(mLetter(b.merchant_id)) +
+      return '<div class="blitem"><div class="row1"><div class="merchant"><span class="mbadge">' + esc(mLetter(b.merchant_id)) + "</span>" + esc(mName(b)) +
         ' <span class="time">' + esc(timeOf(b.at)) + '</span></div><div style="display:flex;gap:8px;align-items:center"><span class="chip st-cancel">P(injection) ' + prob(b.p_injection) + '</span><span class="badge block">blocked</span></div></div>' +
         (items ? '<div class="cart" style="margin:6px 0 0">' + itemsLine(items) + injections(items) + "</div>" : "") +
         '<details data-key="' + esc(key) + '"' + (state.openDetails[key] ? " open" : "") + "><summary>Flagged signed cart (evidence, signed by the merchant)</summary><pre class=\"mono\">" + esc(json) + "</pre></details></div>";
@@ -542,7 +549,7 @@ footer { margin-top: 22px; color: var(--faint); font-size: 12px; text-align: cen
   function renderAudit(d) {
     var rows = sortedRows(d).reverse();
     if (!rows.length) { setHTML($("audit"), '<div class="empty" style="padding:12px 14px">No audit rows yet.</div>'); return; }
-    var head = ["M", "Cart", "Sig", "Facts used", "P(match)<br>P(inj)", "Undo", "Exp. loss", "Decision", "Rule", "Stripe"];
+    var head = ["Merchant", "Cart", "Sig", "Facts used", "P(match)<br>P(inj)", "Undo", "Exp. loss", "Decision", "Rule", "Stripe"];
     var body = rows.map(function (r) {
       var facts = Array.isArray(r.facts_used) ? r.facts_used.map(factLabel).filter(Boolean).join(", ") : "";
       var items = Array.isArray(r.items) ? r.items.map(function (i) { i = i || {}; return [i.colour, i.waist !== undefined && i.waist !== null ? "w" + i.waist : "", i.material, isNum(i.price_pence) ? money(i.price_pence) : ""].filter(Boolean).join(" "); }).join("; ") : "";
@@ -551,7 +558,7 @@ footer { margin-top: 22px; color: var(--faint); font-size: 12px; text-align: cen
       if (r.check_failure) sig += ' <span class="no">' + esc(human(r.check_failure)) + "</span>";
       var pay = r.payment_id ? '<span class="mono" title="' + esc(r.payment_id) + '">' + esc(String(r.payment_id).length > 16 ? String(r.payment_id).slice(0, 8) + "…" + String(r.payment_id).slice(-5) : r.payment_id) + "</span><div>" + esc(r.payment_mode || "") + " · " + esc(r.stripe_status || "—") + "</div>" +
         (r.window_ends_at ? '<div class="sub">until ' + esc(new Date(r.window_ends_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })) + "</div>" : "") : '<span class="sub">none</span>';
-      return "<tr><td><b>" + esc(mLetter(r.merchant_id)) + '</b><div class="sub">' + esc(timeOf(r.at)) + '</div><div class="sub mono">' + esc(r.intent_hash ? String(r.intent_hash).slice(0, 8) : "") + "</div></td><td>" + esc(items) + "</td><td>" + sig + "</td><td>" + esc(facts || "—") +
+      return "<tr><td><span class=\"mbadge sm\">" + esc(mLetter(r.merchant_id)) + '</span> <b>' + esc(mName(r)) + '</b><div class="sub">' + esc(timeOf(r.at)) + '</div><div class="sub mono">' + esc(r.intent_hash ? String(r.intent_hash).slice(0, 8) : "") + "</div></td><td>" + esc(items) + "</td><td>" + sig + "</td><td>" + esc(facts || "—") +
         '</td><td class="num">' + prob(r.p_match) + "<br>" + prob(r.p_injection) + '<div class="sub">' + esc(r.eval_source || "") + "</div></td><td>" + esc(undoTerms(r.undo)) + '<div class="sub">cost ' + money(r.undo_cost_pence) + "</div>" +
         '</td><td class="num">' + money(r.expected_loss_pence) + '</td><td><span class="badge ' + dec + '">' + esc(r.decision || "—") + "</span></td><td>" + esc(r.rule || "—") +
         "</td><td>" + pay + "</td></tr>";

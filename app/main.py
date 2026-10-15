@@ -273,8 +273,14 @@ async def post_pay(body: PayIn):
     return public_row(row)
 
 
+def merchant_name(merchant_id) -> str | None:
+    return (merchants.MERCHANTS.get(merchant_id) or {}).get("name")
+
+
 def public_row(row: dict) -> dict:
-    return {k: v for k, v in row.items() if not k.startswith("_")}
+    out = {k: v for k, v in row.items() if not k.startswith("_")}
+    out["merchant_name"] = merchant_name(row.get("merchant_id"))
+    return out
 
 
 @app.post("/api/undo")
@@ -327,7 +333,7 @@ async def get_audit():
                    "verified": f.get("verified", True)} for f in STATE["facts"]],
         "explanation": STATE["explanation"],
         "rows": [public_row(r) for r in STATE["rows"]],
-        "blocklist": [{"merchant_id": m, "p_injection": (ev or {}).get("p_injection"),
+        "blocklist": [{"merchant_id": m, "merchant_name": merchant_name(m), "p_injection": (ev or {}).get("p_injection"),
                        "signed_cart": (ev or {}).get("signed_cart"), "at": (ev or {}).get("at")}
                       for m, ev in blocked.items()],
     }
