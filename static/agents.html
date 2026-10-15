@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>proto · Agents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<main class="view on" id="v-agents">
+  <div class="wrap">
+    <div class="reqcard">
+      <div class="rq-main">
+        <div class="rq-top"><span class="eyebrow">Signed request</span><span class="sigchip" id="sigchip">✓ Signed by you · Ed25519</span></div>
+        <div class="rq-text">Purchase black jeans for under £80</div>
+        <div class="rq-meta" id="intent"></div>
+      </div>
+      <div class="rq-side">
+        <button class="runbtn" id="runbtn"><span class="ic">▶</span><span class="lbl">Run 6 agents</span></button>
+        <div class="rq-state" id="rqstate">Ready</div>
+      </div>
+    </div>
+    <div class="sub" style="margin:0 0 16px">We deliberately run <b><span id="nag">6</span> agents in parallel</b>, each at a different merchant, <b>all paying through one wallet</b>. Agents only see listings; the wallet reads each signed cart and decides.</div>
+    <div class="stats" id="stats"></div>
+    <div class="panel">
+      <div class="ph">Trace <span class="dim" id="runid">no run yet</span><span class="spacer"></span>
+        <div class="legend"><span><i class="lg" style="background:repeating-linear-gradient(135deg,transparent 0 3px,rgba(255,255,255,.12) 3px 5px);box-shadow:inset 0 0 0 1px var(--line-3)"></i>model</span><span><i class="lg" style="background:#30333f"></i>tool call</span><span><i class="lg" style="background:var(--accent-3)"></i>request_payment</span><span><i class="lg" style="background:var(--ok)"></i>wallet check</span></div>
+      </div>
+      <div class="gantt" id="gantt"></div>
+    </div>
+    <div class="lower">
+      <div class="panel"><div class="ph">Live tail <span class="dim" id="evn">0 events</span></div><div class="log" id="log"></div></div>
+    </div>
+  </div>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer"></aside>
+
+<script src="/static/app.js"></script>
+<script>
+topbar("agents");
+const S = {run:null, audit:null, sel:0, trace:null, spans:null, spanSel:null, seenEv:-1, seenRows:null, unread:0, hashAgent:null, hashRun:null, starting:false};
+const DEFAULT_SHOPS = [["northside","Northside Denim","30-day free cancel"],["stretch","Stretch Denim Co","72h free cancel"],["outlet","Outlet Final Sale","final sale"],["coastline","Coastline Outlet","final sale"],["dealsdenim","Denim Deals","30-day free cancel"],["E","Shady Denim","30-day free cancel"]];
+
+const agents = () => S.run ? (S.run.agents || []) : DEFAULT_SHOPS.map(([shop, name, un]) => ({agent_id: null, shop, shop_name: name, undo_summary: un, status: "idle", events: []}));
+const isRunning = () => !!(S.run && (S.run.agents || []).some(a => a.status === "running"));
+const decRow = a => { const d = (a.events || []).find(e => e.type === "decision"); return d ? (d.data || null) : null; };
+/* the wallet row for an agent: the decision event, refreshed from the audit (approve/undo change it) */
+function rowFor(a) {
+  const d = decRow(a), id = (d && d.id) || a.row_id;
+  const fresh = id && S.audit && (S.audit.rows || []).find(r => r.id === id);
+  return fresh ? {...d, ...fresh, trace: fresh.trace || (d && d.trace)} : d;
+}
+const shopLabel = s => s === "E" ? "shady" : s;
+
+/* ---------------- request card ---------------- */
+function renderIntent() {
+  const A = S.audit || {}, si = A.intent, p = pl(si), h = (S.run && S.run.intent_hash) || A.intent_hash, sig = si && si.signature;
+  const exp = p.expires_at ? new Date(p.expires_at) : null, mins = exp ? Math.max(0, Math.round((exp - Date.now()) / 60000)) : null;
+  $("#intent").innerHTML = `<div><span>Limit</span><b>${gbp(p.max_pence || (S.run && S.run.max_pence) || 8000)}</b></div>
+    <div><span>Expires</span><b>${exp ? exp.toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit"}) + " · " + (mins ? mins + " min" : "expired") : "15 min after signing"}</b></div>
+    <div><span>Intent hash</span><b>${h ? esc(short(h)) : "signed on Run"}</b></div>
+    <div><span>Signature</span><b>${sig ? esc(short(sig, 16, 6)) : "—"}</b></div>`;
+  $("#sigchip").style.visibility = (si || h) ? "visible" : "hidden";
+}
+function renderRunBtn() {
+  const b = $("#runbtn"), run = isRunning() || S.starting, done = S.run && !run, n = agents().length;
+  b.disabled = run; b.classList.toggle("busy", run);
+  b.querySelector(".lbl").textContent = run ? "Running…" : done ? "Run again" : `Run ${n} agents`;
+  b.querySelector(".ic").textContent = run ? "" : "▶";
+  const fin = (S.run ? S.run.agents : []).filter(a => a.status !== "running").length;
+  $("#rqstate").innerHTML = run ? `<span style="color:#FFC9D7">${n} agents live · ${(runElapsed(S.run) / 1000).toFixed(1)}s</span>` : done ? `Complete · ${fin} of ${n} agents finished` : "Ready · signed when you run";
+  $("#nag").textContent = n;
+}
+function renderStats() {
+  const rows = agents().map(rowFor).filter(Boolean), c = k => rows.filter(r => kind(r) === k);
+  const running = S.run ? S.run.agents.filter(a => a.status === "running").length : 0;
+  const sum = a => a.reduce((x, r) => x + amountOf(r), 0);
+  const cell = (k, label, v, sub) => `<div class="stat"><div class="k"><i class="dot ${k}"></i>${label}</div><div class="v">${v}${sub ? `<small>${sub}</small>` : ""}</div></div>`;
+  $("#stats").innerHTML = cell("", "Agents", agents().length, "1 wallet") + cell("run", "Running", running) +
+    cell("pay", "Paid", gbp(sum(c("pay"))), c("pay").length + " charge") + cell("hold", "Held", gbp(sum(c("hold"))), c("hold").length + " hold") +
+    cell("ask", "Needs your OK", c("ask").length) + cell("decline", "Declined · Blocked", c("decline").length + " · " + c("block").length);
+}
+
+/* spans for a lane: tool_call..tool_result pairs, model gaps between */
+function laneSpans(agent, now) {
+  const ev = agent.events || [], out = []; let cursor = 0; const used = new Set();
+  for (let i = 0; i < ev.length; i++) {
+    const e = ev[i]; if (e.type !== "tool_call") continue;
+    let j = ev.findIndex((x, ix) => ix > i && !used.has(ix) && x.type === "tool_result" && x.tool === e.tool);
+    if (j >= 0) used.add(j);
+    const res = j >= 0 ? ev[j] : null;
+    if (e.t_ms > cursor + 60) out.push({kind: "model", s: cursor, e: e.t_ms, name: "model"});
+    const end = res ? res.t_ms : (agent.status === "running" ? now : e.t_ms);
+    out.push({kind: e.tool === "request_payment" ? "pay" : "tool", s: e.t_ms, e: end, open: !res && agent.status === "running", name: e.tool, call: e, res});
+    cursor = end;
+  }
+  if (agent.status === "running" && now > cursor + 60 && !out.some(s => s.open)) out.push({kind: "model", s: cursor, e: now, name: "model", open: true});
+  return out;
+}
+function endLabel(row) {
+  const k = kind(row), amt = gbp(amountOf(row));
+  return {pay: "PAID " + amt, hold: "HELD " + amt, ask: "NEEDS YOUR OK", decline: isInj(row) ? "DECLINED · MERCHANT BLOCKED" : row.p_match != null ? "DECLINED · " + pct(row.p_match) + " MATCH" : "DECLINED", block: "BLOCKED · PAST RECORD", done: "UNDONE", run: ""}[k];
+}
+function lanePill(row) {
+  const k = kind(row); if (k === "run") return `<span class="pill run">running</span>`;
+  const amt = amountOf(row); const txt = {pay: "paid " + gbp(amt), hold: "held " + gbp(amt), ask: "needs OK", decline: "declined", block: "blocked", done: "undone"}[k];
+  return `<span class="pill ${k}">${txt}</span>`;
+}
+function axisMs(now) {
+  // headroom on the right so end-of-lane outcome labels never spill past the panel
+  const W = Math.max(14000, Math.ceil((now * 1.18 + 500) / 2000) * 2000);
+  const step = W <= 15000 ? 1000 : W <= 30000 ? 2000 : W <= 75000 ? 5000 : 10000;
+  return {W, step};
+}
+function renderGantt() {
+  const now = runElapsed(S.run), {W, step} = axisMs(now);
+  const x = ms => (Math.min(ms, W) / W * 100) + "%", w = (a, b) => (Math.max(b - a, 0) / W * 100) + "%";
+  const n = Math.floor(W / step);
+  const ticks = Array.from({length: n + 1}, (_, i) => `<span class="t" style="left:${i * step / W * 100}%">${i * step / 1000}s</span>`).join("");
+  const gl = Array.from({length: n + 1}, (_, i) => `<i class="grid-v" style="left:${i * step / W * 100}%"></i>`).join("");
+  let html = `<div class="axis"><div style="padding:8px 14px">Agent · merchant</div><div class="ticks" style="margin-right:18px">${ticks}</div></div>`;
+  agents().forEach((a, i) => {
+    const row = rowFor(a), dec = (a.events || []).find(e => e.type === "decision");
+    let tr = gl;
+    laneSpans(a, now).forEach(sp => {
+      tr += `<div class="span ${sp.kind} ${sp.open ? "open" : ""} ${sp.kind === "pay" && row && !sp.open ? "o-" + kind(row) : ""}" style="left:${x(sp.s)};width:${w(sp.s, sp.e)}">${sp.kind === "model" ? "" : esc(sp.name)}</div>`;
+      if (sp.kind === "pay") {
+        const full = (row && row.trace) || [], total = traceTotal(full) || 1;
+        const dur = Math.max((dec ? dec.t_ms : (sp.res ? sp.res.t_ms : now)) - sp.s, 1);
+        let prev = 0, sub = "";
+        full.forEach(c => { const s0 = prev / total * 100, e0 = (c.t_ms || 0) / total * 100; prev = c.t_ms || prev;
+          const cls = c.ok === true ? "" : c.ok === false ? "bad" : /^skipped/i.test(c.detail || "") ? "skip" : "warn";
+          sub += `<i class="chk ${cls}" style="left:${s0}%;width:calc(${Math.max(e0 - s0, 0)}% - 1px);min-width:3px" title="${esc(c.step + " · " + c.detail)}"></i>`; });
+        const jev = full.find(c => /jev/i.test(c.step)), failed = full.find(c => c.ok === false);
+        const lab = row ? `wallet · <b>${traceTotal(full)} ms</b> · ${failed ? `<span class="bad-t">✕ ${esc(failed.step)}</span>` : jev ? esc(String(jev.detail || "").split(" · ")[0]) : ""}` : `wallet · checking…`;
+        tr += `<div class="wsub" style="left:${x(sp.s)};width:${w(sp.s, sp.s + dur)}"><i class="conn"></i>${sub}<span class="wlab">${lab}</span></div>`;
+      }
+    });
+    if (row) { const t = (a.events || []).find(e => e.type === "tool_result" && e.tool === "request_payment") || dec;
+      const pk = (a.agent_id || a.shop) + kind(row), fresh = !(S.popped = S.popped || new Set()).has(pk); S.popped.add(pk);
+      if (t) tr += `<div class="end ${kind(row)} ${fresh ? "pop" : ""}" style="left:${x(t.t_ms)}">${endLabel(row)}</div>`; }
+    const pill = a.status === "idle" ? `<span class="pill">idle</span>` : a.status === "error" && !row ? `<span class="pill decline">error</span>` : lanePill(row);
+    html += `<div class="lane ${S.sel === i ? "sel" : ""} ${row ? "k-" + kind(row) : ""}" data-i="${i}">
+      <div class="who"><span class="ix">A${i + 1}</span><span class="nm">${esc(a.shop_name || a.shop)}</span><span class="st">${pill}</span><span class="un">${esc(a.undo_summary || "")}</span></div>
+      <div class="track">${tr}</div></div>`;
+  });
+  if (isRunning()) html += `<div class="cursor" style="left:calc(var(--lab) + (100% - var(--lab) - 18px) * ${now / W})"><b>${(now / 1000).toFixed(1)}s</b></div>`;
+  $("#gantt").innerHTML = html;
+  $("#runid").textContent = S.run ? `${S.run.run_id} · ${agents().reduce((n, a) => n + (a.events || []).length, 0)} events` : "no run yet";
+}
+function evSummary(e) {
+  if (e.type === "model_text") return esc(e.text);
+  if (e.type === "tool_call") return `<span class="dim">${esc(e.tool)}(</span>${esc(JSON.stringify(e.input ?? {}))}<span class="dim">)</span>`;
+  if (e.type === "tool_result") return `<span class="dim">${esc(e.tool)} →</span> ${esc(JSON.stringify(e.output ?? e.text ?? "").slice(0, 90))}`;
+  if (e.type === "cart") { const o = pl(e.data), it = (o.items || [])[0] || {}; return `signed cart · ${esc(it.kind)} · ${esc(it.colour)} · ${gbp(o.total_pence || it.price_pence)} · <span class="ok-t">sig ✓</span>`; }
+  if (e.type === "decision" && e.data) { const k = kind(e.data); const c = {pay: "ok-t", hold: "", ask: "warn-t", decline: "bad-t", block: "bad-t"}[k]; return `<span class="${c}">${(LABEL[k] || k).toLowerCase()}</span> · ${esc(e.data.rule)}`; }
+  if (e.type === "error") return `<span class="bad-t">${esc(e.text)}</span>`;
+  return esc(e.text || "");
+}
+function renderLog() {
+  const all = agents().flatMap(a => (a.events || []).map(e => ({...e, shop: a.shop}))).sort((a, b) => b.t_ms - a.t_ms);
+  $("#evn").textContent = all.length + " events";
+  if (all.length === S.seenEv) return;
+  const fresh = S.seenEv < 0 ? 0 : all.length - S.seenEv; S.seenEv = all.length;
+  $("#log").innerHTML = all.slice(0, 14).map((e, i) => `<div class="lr ${i < fresh ? "new" : ""}"><span class="t">+${((e.t_ms || 0) / 1000).toFixed(3)}s</span><span class="a">${esc(shopLabel(e.shop))}</span><span class="ty t-${e.type}">${e.type}</span><span class="m">${evSummary(e)}</span></div>`).join("")
+    || `<div class="lr"><span class="t">—</span><span class="a"></span><span class="ty"></span><span class="m dim">Press Run to start the agents</span></div>`;
+}
+
+/* ---------------- trace drawer ---------------- */
+const SPAN_CLS = {llm: "llm", tool: "tool", http: "http", wallet: "wallet", check: "ok", jev: "jev", cognee: "cognee", stripe: "stripe", policy: "ok", agent: "agent", run: "run"};
+function agentSpanTree(a) {
+  const sp = (S.spans && S.spans.spans) || []; if (!sp.length) return null;
+  const root = sp.find(s => s.kind === "agent" && ((s.attrs || {}).agent_id === a.agent_id || (s.attrs || {}).shop === a.shop || s.name === a.shop || s.name === "agent:" + a.shop || (s.attrs || {}).merchant_id === a.shop));
+  if (!root) return null;
+  const kids = {}; sp.forEach(s => (kids[s.parent_id] = kids[s.parent_id] || []).push(s));
+  const out = []; const walk = (s, d) => { out.push({s, d}); (kids[s.span_id] || []).sort((x, y) => x.start_ms - y.start_ms).forEach(c => walk(c, d + 1)); };
+  walk(root, 0);
+  return out;
+}
+function spanLabel(s) {
+  const at = s.attrs || {};
+  if (s.kind === "llm") return `llm · ${at.model || s.name}`;
+  if (s.kind === "http") return `${at.method || ""} ${String(at.url || s.name).replace(/^https?:\/\/[^/]+/, "")}`;
+  return s.name;
+}
+function waterfallFromSpans(tree) {
+  const t0 = tree[0].s.start_ms, t1 = Math.max(...tree.map(x => x.s.end_ms ?? x.s.start_ms)), W = Math.max(t1 - t0, 1);
+  return tree.map(({s, d}) => {
+    const cls = s.status === "error" || (s.attrs || {}).ok === false ? "bad" : SPAN_CLS[s.kind] || "tool", end = s.end_ms ?? (t1);
+    return `<span class="n ${d > 1 ? "ind" : ""} ${S.spanSel === s.span_id ? "sel" : ""}" style="padding-left:${d * 12}px" data-span="${esc(s.span_id)}">${esc(spanLabel(s))}<span class="k">${esc(s.kind)}</span></span><span class="bar" data-span="${esc(s.span_id)}"><i class="${cls}" style="left:${(s.start_ms - t0) / W * 100}%;width:${Math.max(end - s.start_ms, 0) / W * 100}%"></i></span><span class="d">${s.end_ms == null ? "…" : Math.round(end - s.start_ms) + " ms"}</span>`;
+  }).join("");
+}
+function waterfallFromEvents(a, row, now) {
+  const evs = a.events || [], W = Math.max(evs.length ? evs[evs.length - 1].t_ms : 0, now, 1), dec = evs.find(e => e.type === "decision");
+  let wf = "";
+  laneSpans(a, now).filter(s => s.kind !== "model").forEach(sp => {
+    wf += `<span class="n">${esc(sp.name)}</span><span class="bar"><i class="${sp.kind}" style="left:${sp.s / W * 100}%;width:${(sp.e - sp.s) / W * 100}%"></i></span><span class="d">${sp.open ? "…" : Math.round(sp.e - sp.s) + " ms"}</span>`;
+    if (sp.kind === "pay" && row && (row.trace || []).length && dec) { let prev = 0; const tot = traceTotal(row.trace) || 1, dur = Math.max(dec.t_ms - sp.s, 1);
+      row.trace.forEach(c => { const skip = c.ok == null && /^skipped/i.test(c.detail || ""); const cls = c.ok === true ? "ok" : c.ok === false ? "bad" : skip ? "" : "warn";
+        wf += `<span class="n ind">${/jev/i.test(c.step) ? "wallet.jev" : "wallet." + String(c.step).replace(/ /g, "_")}</span><span class="bar"><i class="${cls}" style="left:${(sp.s + prev / tot * dur) / W * 100}%;width:${Math.max(((c.t_ms || 0) - prev) / tot * dur, 25) / W * 100}%"></i></span><span class="d">${skip ? "—" : Math.round((c.t_ms || 0) - prev) + " ms"}</span>`; prev = c.t_ms || prev; }); }
+  });
+  return wf;
+}
+function renderTrace() {
+  const d = $("#drawer"); if (S.trace == null) return;
+  const a = agents()[S.trace]; if (!a) return;
+  const row = rowFor(a), now = runElapsed(S.run), evs0 = a.events || [];
+  const endMs = evs0.length ? evs0[evs0.length - 1].t_ms : 0;
+  const tree = agentSpanTree(a);
+  const wf = tree ? waterfallFromSpans(tree) : waterfallFromEvents(a, row, now);
+  let spanDetail = "";
+  if (tree && S.spanSel) { const s = tree.find(x => x.s.span_id === S.spanSel); if (s) spanDetail = `<div class="spand">${jbox(`${esc(s.s.kind)} · ${esc(s.s.name)}`, s.s.attrs || {}, `${Math.round((s.s.end_ms ?? s.s.start_ms) - s.s.start_ms)} ms · ${esc(s.s.status || "")}`)}</div>`; }
+  // events: tool results pair with their call by order
+  const used = new Set();
+  const evs = evs0.map((e, ix) => {
+    let body = "";
+    if (e.type === "tool_result") return "";
+    if (e.type === "model_text") body = `<div class="hd">model</div><div class="quote">${esc(e.text)}</div>`;
+    if (e.type === "tool_call") { const j = evs0.findIndex((x, jx) => jx > ix && !used.has(jx) && x.type === "tool_result" && x.tool === e.tool); if (j >= 0) used.add(j); const res = j >= 0 ? evs0[j] : null;
+      body = `<div class="hd"><b>${esc(e.tool)}</b><span class="dim">${res ? Math.round(res.t_ms - e.t_ms) + " ms" : a.status === "running" ? "running…" : ""}</span></div>
+        <div class="io">${jbox("input", e.input ?? {})}${res ? jbox("output", res.output ?? res.text ?? null, "200") : a.status === "running" ? `<div class="json"><div class="jh"><span>output</span><span>pending</span></div><pre class="dim">…</pre></div>` : ""}</div>`; }
+    if (e.type === "cart" && e.data) body = `<div class="hd"><b>signed cart</b><span class="dim">the wallet reads this, not the listing</span></div>${cartCard(e.data, (S.run || {}).request)}`;
+    if (e.type === "decision" && e.data) { const r = rowFor(a) || e.data;
+      body = `${(r.trace || []).length ? `<div class="hd"><b>wallet checks</b><span class="dim">${traceTotal(r.trace)} ms in wallet</span></div>${checkRows(r.trace)}<div class="hd" style="margin-top:14px"><b>decision</b></div>` : `<div class="hd"><b>decision</b></div>`}${verdict(r, r.facts_used)}`; }
+    if (e.type === "error") body = `<div class="hd"><b class="bad-t">error</b></div><div class="quote bad-t">${esc(e.text)}</div>`;
+    if (!body) return "";
+    return `<div class="ev ev-${e.type}"><div class="tm">${((e.t_ms || 0) / 1000).toFixed(3)}s</div><div class="rail"><i></i></div><div class="bd">${body}</div></div>`;
+  }).join("");
+  const sc = d.querySelector(".db") ? d.querySelector(".db").scrollTop : 0;
+  d.innerHTML = `<div class="dh" ${row ? `data-k="${kind(row)}"` : ""}><span class="kbd" style="font-size:13px">A${S.trace + 1}</span><h3>${esc(a.shop_name || a.shop)}</h3>${evs0.length ? (a.status === "error" && !row ? `<span class="pill decline">error</span>` : lanePill(row)) : ""}<span class="dim">${esc(a.agent_id || "")} · ${esc(a.undo_summary || "")}</span><span class="spacer"></span>${row ? `<a class="btn ghost" href="/#row=${encodeURIComponent(row.id)}">Wallet row →</a>` : ""}<span class="dim">J/K</span><button class="btn ghost" data-close>Close <span class="kbd">Esc</span></button></div>
+    <div class="db">
+      ${wf ? `<div class="sec"><h4><span>Span waterfall${tree ? "" : " · from events"}</span><span>${tree ? `${tree.length} spans · trace ${esc(short((S.spans || {}).trace_id, 8, 4))}` : `${(endMs / 1000).toFixed(2)}s · ${evs0.length} events`}</span></h4><div class="wf">${wf}</div>${spanDetail}${tree ? `<div class="dim" style="font:13px var(--mono);margin-top:8px">click a span for its attributes</div>` : ""}</div>` : ""}
+      ${evs ? `<div class="sec" style="padding:8px 0 0"><h4 style="padding:8px 18px 0"><span>Events</span><span>signed request: “${esc((S.run || {}).request || "")}”</span></h4>${evs}</div>` : ""}
+    </div>`;
+  if (sc) d.querySelector(".db").scrollTop = sc;
+}
+async function loadSpans() {
+  if (!S.run) { S.spans = null; return; }
+  try { S.spans = await api(`/api/run/${encodeURIComponent(S.run.run_id)}/trace`); } catch (e) { S.spans = null; }
+}
+async function openTrace(i) { S.sel = i; S.trace = i; S.spanSel = null; renderTrace(); $("#drawer").classList.add("on"); $("#scrim").classList.add("on"); renderGantt(); await loadSpans(); renderTrace(); }
+function closeDrawer() { S.trace = null; $("#drawer").classList.remove("on"); $("#scrim").classList.remove("on"); }
+
+/* ---------------- polling ---------------- */
+function render() { renderIntent(); renderRunBtn(); renderStats(); renderGantt(); renderLog(); if (S.trace != null) renderTrace();
+  setLive(isRunning(), isRunning() ? "Live" : S.run ? "Complete" : "Idle", runElapsed(S.run)); }
+async function fetchRun(id) {
+  try { S.run = id ? await api(`/api/run/${encodeURIComponent(id)}`) : await api("/api/runs/latest"); } catch (e) { /* keep */ }
+}
+async function fetchAudit() {
+  try { S.audit = await api("/api/audit"); } catch (e) { return; }
+  const rows = S.audit.rows || [];
+  if (S.seenRows == null) S.seenRows = new Set(rows.map(r => r.id));
+  rows.forEach(r => { if (!S.seenRows.has(r.id)) { S.seenRows.add(r.id); S.unread++; } });
+  const b = $("#wbadge"); b.textContent = S.unread; b.classList.toggle("show", S.unread > 0);
+}
+let tick = 0;
+async function loop() {
+  const running = isRunning() || S.starting;
+  await fetchRun(S.run && running ? S.run.run_id : null);
+  if (running || tick % 2 === 0) await fetchAudit();
+  if (S.trace != null && (isRunning() || !S.spans)) await loadSpans();
+  if (S.hashAgent) { const i = agents().findIndex(a => a.agent_id === S.hashAgent); if (i >= 0) { S.hashAgent = null; openTrace(i); } }
+  render(); tick++;
+  setTimeout(loop, isRunning() ? 600 : 1500);
+}
+setInterval(() => { if (isRunning()) { renderGantt(); renderRunBtn(); setLive(true, "Live", runElapsed(S.run)); } }, 100);
+async function run() {
+  if (isRunning() || S.starting) return; S.starting = true; renderRunBtn();
+  try { const r = await api("/api/run", {}); S.seenEv = -1; closeDrawer(); await fetchRun(r.run_id); }
+  catch (e) { toast("Run failed: " + e.message); }
+  S.starting = false; render();
+}
+TOP.onRun = async r => { S.seenEv = -1; closeDrawer(); await fetchRun(r && r.run_id); render(); };
+TOP.onReset = async () => { closeDrawer(); S.run = null; S.spans = null; S.seenEv = -1; S.unread = 0; S.seenRows = null; await fetchRun(); await fetchAudit(); render(); };
+$("#runbtn").onclick = run;
+$("#scrim").onclick = closeDrawer;
+$("#gantt").onclick = e => { const l = e.target.closest(".lane"); if (l && S.run) openTrace(+l.dataset.i); };
+$("#drawer").onclick = e => { if (e.target.closest("[data-close]")) return closeDrawer();
+  const sp = e.target.closest("[data-span]"); if (sp) { S.spanSel = S.spanSel === sp.dataset.span ? null : sp.dataset.span; renderTrace(); } };
+document.addEventListener("keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase(), n = agents().length;
+  if (k === "escape") closeDrawer();
+  else if ((k === "j" || k === "k") && S.run) { S.sel = (S.sel + (k === "j" ? 1 : n - 1)) % n; if (S.trace != null) openTrace(S.sel); else renderGantt(); }
+  else if (k === "enter" && S.run) openTrace(S.sel);
+});
+(async () => {
+  const h = new URLSearchParams(location.hash.slice(1));
+  S.hashAgent = h.get("agent");
+  const rid = h.get("run");
+  await fetchRun(rid || null); if (!S.run && rid) await fetchRun(null);
+  await fetchAudit(); S.unread = 0; $("#wbadge").classList.remove("show");
+  render(); loop();
+})();
+</script>
+</body>
+</html>

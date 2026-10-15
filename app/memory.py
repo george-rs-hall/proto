@@ -11,7 +11,7 @@ from cognee import SearchType
 from cognee.infrastructure.engine import DataPoint, Edge
 from cognee.modules.pipelines import Task
 from cognee.tasks.storage import add_data_points
-from pydantic import SkipValidation
+from pydantic import BaseModel, SkipValidation
 
 from app import signing
 
@@ -103,35 +103,156 @@ async def load_verified_facts() -> list[dict]:
     return [{k: r[k] for k in FACT_FIELDS} for r in rows if verify_fact(r)]
 
 
-async def explain(request: str) -> dict:
-    if request in _explanations:
-        return _explanations[request]
+class _Relevant(BaseModel):
+    answer: str
+    relevant_relations: list[str]
+
+
+_relevant: dict[str, dict] = {}
+_relevant_order: list[str] = []
+
+
+def _question(request: str) -> str:
+    return (
+        f"George is buying: {request}. Which of George's facts matter for this purchase? "
+        "Include every fact that would rule a product in or out for this exact purchase: "
+        "sizes, fits, and materials or ingredients George wants or avoids that apply to this kind of product. "
+        "Leave out everything else, including general tastes and facts about other kinds of products. "
+        "Set relevant_relations to the exact relation names (like waist_size) of those facts, "
+        "and answer in one short plain-English sentence."
+    )
+
+
+def _evidence_edges(a) -> list[dict]:
+    evidence = (getattr(a, "metadata", None) or {}).get("evidence", []) or []
+    labels = {e["artifact_id"]: e.get("label") for e in evidence if e.get("kind") == "graph_node"}
+    return [
+        {
+            "relationship_name": e.get("relationship_name"),
+            "source": labels.get(e.get("source_node_id"), e.get("source_node_id")),
+            "target": labels.get(e.get("target_node_id"), e.get("target_node_id")),
+            "edge_id": e.get("artifact_id"),
+        }
+        for e in evidence
+        if e.get("kind") == "graph_edge"
+    ]
+
+
+async def relevant_facts(request: str) -> dict:
+    """Ask Cognee which of George's signed facts matter for this request; return only those, verified.
+
+    {"facts": [fact payloads], "total": N verified, "method": "cognee"|"fallback-all", "answer", "cited": [edges]}
+    """
+    if request in _relevant:
+        return _relevant[request]
+    verified = await load_verified_facts()
+    by_relation = {f["relation"]: f for f in verified}
     try:
         answers = await cognee.recall(
-            f"Which of George's facts matter for buying: {request}?",
+            _question(request),
             query_type=SearchType.GRAPH_COMPLETION,
             datasets=[FACTS_DATASET],
             include_references=True,
+            top_k=40,
+            response_model=_Relevant,
         )
         a = answers[0]
-        evidence = (getattr(a, "metadata", None) or {}).get("evidence", [])
-        labels = {e["artifact_id"]: e.get("label") for e in evidence if e.get("kind") == "graph_node"}
-        cited = [
-            {
-                "relationship_name": e.get("relationship_name"),
-                "source": labels.get(e.get("source_node_id"), e.get("source_node_id")),
-                "target": labels.get(e.get("target_node_id"), e.get("target_node_id")),
-                "edge_id": e.get("artifact_id"),
-            }
-            for e in evidence
-            if e.get("kind") == "graph_edge"
-        ]
-        result = {"answer": getattr(a, "text", None) or str(a), "cited": cited}
+        structured = getattr(a, "structured", None) or {}
+        if not structured:
+            text = getattr(a, "text", None) or str(a)
+            try:
+                structured = json.loads(text)
+            except (ValueError, TypeError):
+                structured = {"answer": text, "relevant_relations": []}
+        wanted = {r.strip() for r in structured.get("relevant_relations") or []}
+        answer = structured.get("answer") or getattr(a, "text", None) or ""
+        cited = [e for e in _evidence_edges(a) if e["relationship_name"] in wanted and e["relationship_name"] in by_relation]
+        facts = []
+        for e in cited:
+            f = by_relation[e["relationship_name"]]
+            if f not in facts:
+                facts.append(f)
+        if facts:
+            result = {"facts": facts, "total": len(verified), "method": "cognee", "answer": answer, "cited": cited}
+        else:
+            print(f"[memory] relevant_facts: nothing mapped (wanted={sorted(wanted)}), using all facts")
+            result = {"facts": verified, "total": len(verified), "method": "fallback-all", "answer": answer, "cited": []}
     except Exception as exc:  # noqa: BLE001
-        print(f"[memory] explain failed: {exc!r}")
-        return {"answer": "(explanation unavailable)", "cited": []}
-    _explanations[request] = result
+        print(f"[memory] relevant_facts failed: {exc!r}")
+        return {"facts": verified, "total": len(verified), "method": "fallback-all", "answer": "(Cognee unavailable; using all signed facts)", "cited": []}
+    _relevant[request] = result
+    if request in _relevant_order:
+        _relevant_order.remove(request)
+    _relevant_order.append(request)
     return result
+
+
+async def explain(request: str) -> dict:
+    r = await relevant_facts(request)
+    return {"answer": r["answer"], "cited": r["cited"]}
+
+
+def _cell(v):
+    return v.get("value") if isinstance(v, dict) and "value" in v else v
+
+
+async def graph(request: str | None = None) -> dict:
+    """George's memory graph: nodes, signed edges (verified flag), and edge ids relevant per request."""
+    rows = await cognee.recall(
+        "MATCH (a:Node)-[r:EDGE]->(b:Node) WHERE a.name = 'George' RETURN a.id, a.name, b.id, b.name, r",
+        query_type=SearchType.CYPHER,
+        datasets=[FACTS_DATASET],
+    )
+    nodes: dict[str, dict] = {}
+    edges = []
+    for row in rows or []:
+        raw = getattr(row, "raw", row)
+        cells = raw.get("value") if isinstance(raw, dict) else raw
+        if not isinstance(cells, list) or len(cells) < 5:
+            continue
+        aid, aname, bid, bname, r = (_cell(c) for c in cells[:5])
+        props = r.get("properties") if isinstance(r, dict) else None
+        if isinstance(props, str):
+            try:
+                props = json.loads(props)
+            except ValueError:
+                props = {}
+        props = props or {}
+        fact = props.get("properties") or {}
+        if "signature" not in fact:
+            continue
+        nodes.setdefault(str(aid), {"id": str(aid), "label": aname, "kind": "person"})
+        nodes.setdefault(str(bid), {"id": str(bid), "label": bname, "kind": "value"})
+        edges.append(
+            {
+                "id": props.get("edge_object_id") or f"{aid}-{fact.get('relation')}-{bid}",
+                "source": str(aid),
+                "target": str(bid),
+                "relation": fact.get("relation"),
+                "object": fact.get("object"),
+                "signed_at": fact.get("signed_at"),
+                "signature": fact.get("signature"),
+                "verified": verify_fact(fact),
+            }
+        )
+    edges.sort(key=lambda e: e["relation"] or "")
+    by_relation = {e["relation"]: e["id"] for e in edges}
+    if request is not None:
+        await relevant_facts(request)
+        requests = [request]
+    else:
+        requests = _relevant_order[-1:]
+    relevant = {
+        q: [by_relation[f["relation"]] for f in _relevant[q]["facts"] if f["relation"] in by_relation]
+        for q in requests
+        if q in _relevant and _relevant[q]["method"] == "cognee"
+    }
+    return {
+        "nodes": list(nodes.values()),
+        "edges": edges,
+        "relevant": relevant,
+        "latest_request": _relevant_order[-1] if _relevant_order else None,
+    }
 
 
 # --- provider history (blocklist, undo outcomes) ---
