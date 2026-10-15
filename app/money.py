@@ -27,7 +27,7 @@ def ensure_customer() -> tuple[str, str]:
 def pay(signed_offer: dict, *, p_match: float, rule: str) -> dict:
     offer = signed_offer["payload"]
     window_hours = offer["undo"]["window_hours"]
-    mode = "hold" if window_hours <= HOLD_LIMIT_HOURS else "charge"
+    mode = "hold" if 0 < window_hours <= HOLD_LIMIT_HOURS else "charge"
     customer_id, payment_method_id = ensure_customer()
     pi = stripe.PaymentIntent.create(
         amount=sum(item["price_pence"] for item in offer["items"]),
