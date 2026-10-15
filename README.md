@@ -10,16 +10,17 @@ Prerequisites: [uv](https://docs.astral.sh/uv/) and a `.env` in the repo root wi
 
 - `STRIPE_SECRET_KEY`: a Stripe test-mode key (`sk_test_…`)
 - `TYPESAFE_API_KEY`: for the Jev cart evaluator
-- `LLM_API_KEY`: Anthropic key, used by Cognee and the evaluator fallback
+- `LLM_API_KEY`: Anthropic key, used by the shopping agents, Cognee and the evaluator fallback
 
 ```sh
-uv run python -m scripts.seed              # sign the user's facts into Cognee (resets .cognee/)
-uv run uvicorn app.main:app --port 8000    # wallet, merchants and UI
-open http://127.0.0.1:8000                 # sign a request, watch decisions arrive
-uv run python -m scripts.agent_loop        # scripted agent: requests payment for every offer
+uv run python -m scripts.prepare_demo      # reset, sign the user's facts, build some wallet history
+uv run uvicorn app.main:app --port 8000    # wallet, shops, chat and agents
 ```
 
-Seed before starting the server: only one process writes to Cognee at a time.
+- `http://127.0.0.1:8000/chat`: say "Hey, go buy me some black jeans". Three Claude agents shop at three stores at once; the wallet checks each signed cart and pays, asks, declines or blocks.
+- `http://127.0.0.1:8000/`: the wallet. History, undo, and why each cart was stopped.
+
+`prepare_demo` runs the scripted agent (`scripts.agent_loop`) once, so one shop is already flagged for prompt injection. Use `--no-history` to only reset and seed. Run it with the server stopped: only one process writes to Cognee at a time.
 
 To let Claude Code shop through the wallet, add the MCP server and paste the signed-intent token from the UI:
 
