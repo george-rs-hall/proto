@@ -158,6 +158,7 @@ def new_row(merchant_id, intent_hash, payload) -> dict:
         "undo": dict((payload or {}).get("undo") or {"window_hours": None, "cancel_url": None, "fee_pence": None}),
         "undo_cost_pence": None, "expected_loss_pence": None, "decision": None, "rule": None,
         "payment_id": None, "payment_mode": None, "stripe_status": None, "window_ends_at": None,
+        "merchant_name": merchant_name(merchant_id),
     }
     return row
 
@@ -272,9 +273,9 @@ async def post_pay(body: PayIn):
     # 1. blocklist: stop before anything else, evaluator not called
     blocked = await get_blocklist()
     if merchant_id in blocked:
-        row.update(policy.decide(blocked=True, check_failure=None, p_match=None, p_injection=None,
+        row.update(policy.decide(blocked=blocked[merchant_id] or True, check_failure=None, p_match=None, p_injection=None,
                                  offer=signed_offer, refused_undo=False))
-        return store_row(row)
+        return public_row(store_row(row))
 
     # 2. signatures, hash, expiries, cap
     sig_ok, failure, offer_payload = check_offer(signed_intent, signed_offer, intent_hash)
@@ -283,7 +284,7 @@ async def post_pay(body: PayIn):
     if failure:
         row.update(policy.decide(blocked=False, check_failure=failure, p_match=None, p_injection=None,
                                  offer=signed_offer, refused_undo=False))
-        return store_row(row)
+        return public_row(store_row(row))
 
     # 3. verified facts
     facts = await load_facts()
@@ -298,7 +299,7 @@ async def post_pay(body: PayIn):
     except Exception as e:
         log.exception("evaluator failed")
         row.update(decision="decline", rule=f"evaluator unavailable: {e}")
-        return store_row(row)
+        return public_row(store_row(row))
     p_match, p_injection = probs.get("p_match"), probs.get("p_injection")
     row.update(p_match=p_match, p_injection=p_injection, eval_source=probs.get("source"))
 

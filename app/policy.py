@@ -18,7 +18,15 @@ def cart_total(offer: dict) -> int:
 def decide(*, blocked, check_failure, p_match, p_injection, offer, refused_undo) -> dict:
     out = {"decision": None, "rule": None, "undo_cost_pence": None, "expected_loss_pence": None}
     if blocked:
-        return {**out, "decision": "block", "rule": "merchant is on the blocklist (flagged for injection)"}
+        ev = blocked if isinstance(blocked, dict) else {}
+        when = ""
+        try:
+            from datetime import datetime
+            when = " on " + datetime.fromisoformat(str(ev.get("at")).replace("Z", "+00:00")).strftime("%-d %b %H:%M UTC")
+        except (TypeError, ValueError):
+            pass
+        return {**out, "decision": "block",
+                "rule": f"blocked on past record: merchant flagged for prompt injection{when}; this cart was not evaluated"}
     if check_failure:
         return {**out, "decision": "decline", "rule": f"check failed: {check_failure}"}
     if p_injection is not None and p_injection >= INJECTION_THRESHOLD:

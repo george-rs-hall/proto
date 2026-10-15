@@ -74,7 +74,8 @@ async def run_tool(name: str, args: dict, ctx: dict, agent: dict, http: httpx.As
         return ctx["catalogue"]
     if name == "add_to_cart":
         pid = args.get("product_id", "")
-        emit(agent, "tool_call", f"Adding {pid} to cart", {"product_id": pid})
+        listed = next((p.get("title") for p in ((ctx.get("catalogue") or {}).get("products") or []) if p.get("id") == pid), pid)
+        emit(agent, "tool_call", f"Choosing '{listed}'", {"product_id": pid})
         r = await http.post(f"{WALLET_URL}/merchants/{shop}/cart",
                             json={"intent_hash": ctx["intent_hash"], "product_id": pid})
         r.raise_for_status()
