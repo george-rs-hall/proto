@@ -1,4 +1,5 @@
 import os
+import threading
 import time
 
 import stripe
@@ -14,6 +15,7 @@ if not _key.startswith(("sk_test_", "rk_test_")):
 stripe.api_key = _key
 
 _customer: tuple[str, str] | None = None
+_customer_lock = threading.Lock()
 
 APP_TAG = "proto-wallet"
 CUSTOMER_NAME = "Proto agent buyer"
@@ -22,14 +24,26 @@ LEGACY_KEYS = ("merchant_id", "intent_hash", "rule", "undo_window_hours")
 
 def ensure_customer() -> tuple[str, str]:
     global _customer
-    if _customer is None:
-        customer = stripe.Customer.create(name=CUSTOMER_NAME, metadata={"app": APP_TAG})
-        pm = stripe.PaymentMethod.attach("pm_card_visa", customer=customer.id)
-        _customer = (customer.id, pm.id)
-    return _customer
+    with _customer_lock:
+        if _customer is None:
+            customer = stripe.Customer.create(name=CUSTOMER_NAME, metadata={"app": APP_TAG})
+            pm = stripe.PaymentMethod.attach("pm_card_visa", customer=customer.id)
+            _customer = (customer.id, pm.id)
+        return _customer
 
 
 def pay(signed_offer: dict, *, p_match: float, rule: str) -> dict:
+    global _customer
+    try:
+        return _pay(signed_offer, p_match=p_match, rule=rule)
+    except stripe.InvalidRequestError as e:
+        if "customer" not in str(e).lower() and "payment_method" not in str(e).lower():
+            raise
+        _customer = None  # cached test customer was deleted; make a fresh one
+        return _pay(signed_offer, p_match=p_match, rule=rule)
+
+
+def _pay(signed_offer: dict, *, p_match: float, rule: str) -> dict:
     offer = signed_offer["payload"]
     window_hours = offer["undo"]["window_hours"]
     mode = "hold" if 0 < window_hours <= HOLD_LIMIT_HOURS else "charge"

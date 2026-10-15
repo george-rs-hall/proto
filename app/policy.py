@@ -32,24 +32,24 @@ def decide(*, blocked, check_failure, p_match, p_injection, offer, refused_undo)
     if p_injection is not None and p_injection >= INJECTION_THRESHOLD:
         return {**out, "decision": "decline",
                 "rule": f"P(injection) {p_injection:.2f} ≥ {INJECTION_THRESHOLD} → decline and blocklist merchant"}
-    if p_match < MATCH_FLOOR:
-        return {**out, "decision": "decline", "rule": f"P(match) {p_match:.2f} < {MATCH_FLOOR} floor"}
-
     payload = _payload(offer)
     undo = payload.get("undo") or {}
     window = int(undo.get("window_hours") or 0)
     total = cart_total(offer)
-    undoable = window > 0 and bool(undo.get("cancel_url")) and not refused_undo
-    if undoable:
+    if window > 0 and bool(undo.get("cancel_url")) and not refused_undo:
+        # undoable: always pay (hold or charge by window); the user can undo if it's wrong
         undo_cost = int(undo.get("fee_pence") or 0)
         fee = "free" if undo_cost == 0 else f"{_gbp(undo_cost)} fee"
-        terms = f"{fee} {window}h undo"
+        out.update(undo_cost_pence=undo_cost, expected_loss_pence=round((1 - p_match) * undo_cost))
+        return {**out, "decision": "pay",
+                "rule": f"undoable ({fee} {window}h undo) → pay; {round(p_match * 100)}% match, you can undo"}
+    undo_cost = total
+    if refused_undo:
+        terms = "merchant has refused an undo before; full cart at risk"
     else:
-        undo_cost = total
-        if refused_undo:
-            terms = "merchant has refused an undo before; full cart at risk"
-        else:
-            terms = "no undo (final sale); full cart at risk"
+        terms = "no undo (final sale); full cart at risk"
+    if p_match < MATCH_FLOOR:
+        return {**out, "decision": "decline", "rule": f"final sale and P(match) {p_match:.2f} < {MATCH_FLOOR} floor"}
     loss = round((1 - p_match) * undo_cost)
     out.update(undo_cost_pence=undo_cost, expected_loss_pence=loss)
     if loss <= LOSS_LIMIT_PENCE:
