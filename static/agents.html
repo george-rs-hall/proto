@@ -6,6 +6,7 @@
 <title>proto · Agents</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23FAD3DE%22/%3E%3Cstop offset=%22.5%22 stop-color=%22%23F386A1%22/%3E%3Cstop offset=%221%22 stop-color=%22%23C98BD6%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22url(%23g)%22/%3E%3Cg transform=%22translate(7 6)%22 fill=%22%232a0f1a%22%3E%3Cpath d=%22M2 0h5.2v20H2z%22/%3E%3Cpath d=%22M9.2 0H11a7 7 0 0 1 0 14H9.2z%22/%3E%3Ccircle cx=%2216.2%22 cy=%2218%22 r=%222%22/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -43,7 +44,7 @@
 <script>
 topbar("agents");
 const S = {run:null, audit:null, sel:0, trace:null, spans:null, spanSel:null, seenEv:-1, seenRows:null, unread:0, hashAgent:null, hashRun:null, starting:false};
-const DEFAULT_SHOPS = [["northside","Northside Denim","30-day free cancel"],["stretch","Stretch Denim Co","72h free cancel"],["outlet","Outlet Final Sale","final sale"],["coastline","Coastline Outlet","final sale"],["dealsdenim","Denim Deals","30-day free cancel"],["E","Shady Denim","30-day free cancel"]];
+const DEFAULT_SHOPS = [["northside","Northside Denim","30-day free cancel"],["stretch","Stretch Denim Co","72h free cancel"],["outlet","Outlet Final Sale","final sale"],["coastline","Coastline Outlet","final sale"],["dealsdenim","Denim Deals","30-day free cancel"],["shady","Shady Denim","30-day free cancel"]];
 
 const agents = () => S.run ? (S.run.agents || []) : DEFAULT_SHOPS.map(([shop, name, un]) => ({agent_id: null, shop, shop_name: name, undo_summary: un, status: "idle", events: []}));
 const isRunning = () => !!(S.run && (S.run.agents || []).some(a => a.status === "running"));
@@ -82,7 +83,7 @@ function renderStats() {
   const cell = (k, label, v, sub) => `<div class="stat"><div class="k"><i class="dot ${k}"></i>${label}</div><div class="v">${v}${sub ? `<small>${sub}</small>` : ""}</div></div>`;
   $("#stats").innerHTML = cell("", "Agents", agents().length, "1 wallet") + cell("run", "Running", running) +
     cell("pay", "Paid", gbp(sum(c("pay"))), c("pay").length + " charge") + cell("hold", "Held", gbp(sum(c("hold"))), c("hold").length + " hold") +
-    cell("ask", "Needs your OK", c("ask").length) + cell("decline", "Declined · Blocked", c("decline").length + " · " + c("block").length);
+    cell("ask", "Needs your OK", c("ask").length) + cell("decline", "Declined", c("decline").length) + cell("block", "Blocked", c("block").length);
 }
 
 /* spans for a lane: tool_call..tool_result pairs, model gaps between */
@@ -107,9 +108,10 @@ function endLabel(row) {
 }
 function lanePill(row) {
   const k = kind(row); if (k === "run") return `<span class="pill run">running</span>`;
-  const amt = amountOf(row); const txt = {pay: "paid " + gbp(amt), hold: "held " + gbp(amt), ask: "needs OK", decline: "declined", block: "blocked", done: "undone"}[k];
+  const amt = amountOf(row); const txt = {pay: "Paid " + gbp(amt), hold: "Held " + gbp(amt), ask: "Needs your OK", decline: "Declined", block: "Blocked", done: "Undone"}[k];
   return `<span class="pill ${k}">${txt}</span>`;
 }
+const SHORT_TOOL = {browse_catalogue: "browse", add_to_cart: "cart", request_payment: "pay"};
 function axisMs(now) {
   // headroom on the right so end-of-lane outcome labels never spill past the panel
   const W = Math.max(14000, Math.ceil((now * 1.18 + 500) / 2000) * 2000);
@@ -127,7 +129,7 @@ function renderGantt() {
     const row = rowFor(a), dec = (a.events || []).find(e => e.type === "decision");
     let tr = gl;
     laneSpans(a, now).forEach(sp => {
-      tr += `<div class="span ${sp.kind} ${sp.open ? "open" : ""} ${sp.kind === "pay" && row && !sp.open ? "o-" + kind(row) : ""}" style="left:${x(sp.s)};width:${w(sp.s, sp.e)}">${sp.kind === "model" ? "" : esc(sp.name)}</div>`;
+      tr += `<div class="span ${sp.kind} ${sp.open ? "open" : ""} ${sp.kind === "pay" && row && !sp.open ? "o-" + kind(row) : ""}" style="left:${x(sp.s)};width:${w(sp.s, sp.e)}" title="${esc(sp.name)}${sp.res ? " · " + Math.round(sp.e - sp.s) + " ms" : ""}">${sp.kind === "model" ? "" : esc(SHORT_TOOL[sp.name] || sp.name)}</div>`;
       if (sp.kind === "pay") {
         const full = (row && row.trace) || [], total = traceTotal(full) || 1;
         const dur = Math.max((dec ? dec.t_ms : (sp.res ? sp.res.t_ms : now)) - sp.s, 1);
@@ -136,7 +138,9 @@ function renderGantt() {
           const cls = c.ok === true ? "" : c.ok === false ? "bad" : /^skipped/i.test(c.detail || "") ? "skip" : "warn";
           sub += `<i class="chk ${cls}" style="left:${s0}%;width:calc(${Math.max(e0 - s0, 0)}% - 1px);min-width:3px" title="${esc(c.step + " · " + c.detail)}"></i>`; });
         const jev = full.find(c => /jev/i.test(c.step)), failed = full.find(c => c.ok === false);
-        const lab = row ? `wallet · <b>${traceTotal(full)} ms</b> · ${failed ? `<span class="bad-t">✕ ${esc(failed.step)}</span>` : jev ? esc(String(jev.detail || "").split(" · ")[0]) : ""}` : `wallet · checking…`;
+        // a policy "failure" is the decision itself — say what was decided rather than show an error ✕
+        const pline = row && policyLine(row);
+        const lab = row ? `wallet · <b>${traceTotal(full)} ms</b> · ${pline ? `<span class="${kind(row) === "ask" ? "warn-t" : "bad-t"}">${esc(pline)}</span>` : failed ? `<span class="bad-t">✕ ${esc(failed.step)}</span>` : lowMatch(row) ? `<span class="warn-t">${pct(row.p_match)} match · free to undo</span>` : jev ? esc(pctify(String(jev.detail || "").split(" · ")[0])) : ""}` : `wallet · checking…`;
         tr += `<div class="wsub" style="left:${x(sp.s)};width:${w(sp.s, sp.s + dur)}"><i class="conn"></i>${sub}<span class="wlab">${lab}</span></div>`;
       }
     });
@@ -144,7 +148,7 @@ function renderGantt() {
       const pk = (a.agent_id || a.shop) + kind(row), fresh = !(S.popped = S.popped || new Set()).has(pk); S.popped.add(pk);
       if (t) tr += `<div class="end ${kind(row)} ${fresh ? "pop" : ""}" style="left:${x(t.t_ms)}">${endLabel(row)}</div>`; }
     const pill = a.status === "idle" ? `<span class="pill">idle</span>` : a.status === "error" && !row ? `<span class="pill decline">error</span>` : lanePill(row);
-    html += `<div class="lane ${S.sel === i ? "sel" : ""} ${row ? "k-" + kind(row) : ""}" data-i="${i}">
+    html += `<div class="lane ${S.run && S.sel === i ? "sel" : ""} ${row ? "k-" + kind(row) : ""}" data-i="${i}">
       <div class="who"><span class="ix">A${i + 1}</span><span class="nm">${esc(a.shop_name || a.shop)}</span><span class="st">${pill}</span><span class="un">${esc(a.undo_summary || "")}</span></div>
       <div class="track">${tr}</div></div>`;
   });
@@ -157,7 +161,7 @@ function evSummary(e) {
   if (e.type === "tool_call") return `<span class="dim">${esc(e.tool)}(</span>${esc(JSON.stringify(e.input ?? {}))}<span class="dim">)</span>`;
   if (e.type === "tool_result") return `<span class="dim">${esc(e.tool)} →</span> ${esc(JSON.stringify(e.output ?? e.text ?? "").slice(0, 90))}`;
   if (e.type === "cart") { const o = pl(e.data), it = (o.items || [])[0] || {}; return `signed cart · ${esc(it.kind)} · ${esc(it.colour)} · ${gbp(o.total_pence || it.price_pence)} · <span class="ok-t">sig ✓</span>`; }
-  if (e.type === "decision" && e.data) { const k = kind(e.data); const c = {pay: "ok-t", hold: "", ask: "warn-t", decline: "bad-t", block: "bad-t"}[k]; return `<span class="${c}">${(LABEL[k] || k).toLowerCase()}</span> · ${esc(e.data.rule)}`; }
+  if (e.type === "decision" && e.data) { const k = kind(e.data); const c = {pay: "ok-t", hold: "", ask: "warn-t", decline: "bad-t", block: "bad-t"}[k]; return `<span class="${c}">${LABEL[k] || k}</span> · ${esc(pctify(e.data.rule))}`; }
   if (e.type === "error") return `<span class="bad-t">${esc(e.text)}</span>`;
   return esc(e.text || "");
 }
@@ -183,9 +187,16 @@ function agentSpanTree(a) {
 }
 function spanLabel(s) {
   const at = s.attrs || {};
+  if (s.kind === "jev" || /^jev$/i.test(s.name)) return JEV_LONG;
   if (s.kind === "llm") return `llm · ${at.model || s.name}`;
   if (s.kind === "http") return `${at.method || ""} ${String(at.url || s.name).replace(/^https?:\/\/[^/]+/, "")}`;
   return s.name;
+}
+/* the wallet's check spans for this agent (children of the wallet span) */
+function walletChecks(tree) {
+  if (!tree) return [];
+  const w = tree.find(x => x.s.kind === "wallet"); if (!w) return [];
+  return tree.filter(x => x.s.parent_id === w.s.span_id).map(x => x.s);
 }
 function waterfallFromSpans(tree) {
   const t0 = tree[0].s.start_ms, t1 = Math.max(...tree.map(x => x.s.end_ms ?? x.s.start_ms)), W = Math.max(t1 - t0, 1);
@@ -225,12 +236,15 @@ function renderTrace() {
         <div class="io">${jbox("input", e.input ?? {})}${res ? jbox("output", res.output ?? res.text ?? null, "200") : a.status === "running" ? `<div class="json"><div class="jh"><span>output</span><span>pending</span></div><pre class="dim">…</pre></div>` : ""}</div>`; }
     if (e.type === "cart" && e.data) body = `<div class="hd"><b>signed cart</b><span class="dim">the wallet reads this, not the listing</span></div>${cartCard(e.data, (S.run || {}).request)}`;
     if (e.type === "decision" && e.data) { const r = rowFor(a) || e.data;
-      body = `${(r.trace || []).length ? `<div class="hd"><b>wallet checks</b><span class="dim">${traceTotal(r.trace)} ms in wallet</span></div>${checkRows(r.trace)}<div class="hd" style="margin-top:14px"><b>decision</b></div>` : `<div class="hd"><b>decision</b></div>`}${verdict(r, r.facts_used)}`; }
+      body = `${(r.trace || []).length ? `<div class="hd"><b>wallet checks</b><span class="dim">${traceTotal(r.trace)} ms in wallet</span></div>${checkRows(r.trace, {spans: walletChecks(tree), jevLong: !tree})}<div class="hd" style="margin-top:14px"><b>decision</b></div>` : `<div class="hd"><b>decision</b></div>`}${verdict(r, r.facts_used)}`; }
     if (e.type === "error") body = `<div class="hd"><b class="bad-t">error</b></div><div class="quote bad-t">${esc(e.text)}</div>`;
     if (!body) return "";
     return `<div class="ev ev-${e.type}"><div class="tm">${((e.t_ms || 0) / 1000).toFixed(3)}s</div><div class="rail"><i></i></div><div class="bd">${body}</div></div>`;
   }).join("");
-  const sc = d.querySelector(".db") ? d.querySelector(".db").scrollTop : 0;
+  // keep scroll only when re-rendering the same agent (poll); a different agent starts at the top
+  const same = d.dataset.agent === String(S.trace);
+  const sc = same && d.querySelector(".db") ? d.querySelector(".db").scrollTop : 0;
+  d.dataset.agent = String(S.trace);
   d.innerHTML = `<div class="dh" ${row ? `data-k="${kind(row)}"` : ""}><span class="kbd" style="font-size:13px">A${S.trace + 1}</span><h3>${esc(a.shop_name || a.shop)}</h3>${evs0.length ? (a.status === "error" && !row ? `<span class="pill decline">error</span>` : lanePill(row)) : ""}<span class="dim">${esc(a.agent_id || "")} · ${esc(a.undo_summary || "")}</span><span class="spacer"></span>${row ? `<a class="btn ghost" href="/#row=${encodeURIComponent(row.id)}">Wallet row →</a>` : ""}<span class="dim">J/K</span><button class="btn ghost" data-close>Close <span class="kbd">Esc</span></button></div>
     <div class="db">
       ${wf ? `<div class="sec"><h4><span>Span waterfall${tree ? "" : " · from events"}</span><span>${tree ? `${tree.length} spans · trace ${esc(short((S.spans || {}).trace_id, 8, 4))}` : `${(endMs / 1000).toFixed(2)}s · ${evs0.length} events`}</span></h4><div class="wf">${wf}</div>${spanDetail}${tree ? `<div class="dim" style="font:13px var(--mono);margin-top:8px">click a span for its attributes</div>` : ""}</div>` : ""}
@@ -243,7 +257,7 @@ async function loadSpans() {
   try { S.spans = await api(`/api/run/${encodeURIComponent(S.run.run_id)}/trace`); } catch (e) { S.spans = null; }
 }
 async function openTrace(i) { S.sel = i; S.trace = i; S.spanSel = null; renderTrace(); $("#drawer").classList.add("on"); $("#scrim").classList.add("on"); renderGantt(); await loadSpans(); renderTrace(); }
-function closeDrawer() { S.trace = null; $("#drawer").classList.remove("on"); $("#scrim").classList.remove("on"); }
+function closeDrawer() { S.trace = null; $("#drawer").dataset.agent = ""; $("#drawer").classList.remove("on"); $("#scrim").classList.remove("on"); }
 
 /* ---------------- polling ---------------- */
 function render() { renderIntent(); renderRunBtn(); renderStats(); renderGantt(); renderLog(); if (S.trace != null) renderTrace();

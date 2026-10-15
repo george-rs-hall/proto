@@ -6,6 +6,7 @@
 <title>proto · Wallet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23FAD3DE%22/%3E%3Cstop offset=%22.5%22 stop-color=%22%23F386A1%22/%3E%3Cstop offset=%221%22 stop-color=%22%23C98BD6%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22url(%23g)%22/%3E%3Cg transform=%22translate(7 6)%22 fill=%22%232a0f1a%22%3E%3Cpath d=%22M2 0h5.2v20H2z%22/%3E%3Cpath d=%22M9.2 0H11a7 7 0 0 1 0 14H9.2z%22/%3E%3Ccircle cx=%2216.2%22 cy=%2218%22 r=%222%22/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -96,12 +97,12 @@ function renderWallet() {
   $("#memn").textContent = total || "–";
   $("#memlink").textContent = `${shown.length} of ${total} · all →`;
   $("#memories").innerHTML = shown.map(e => { const t = edgeText(e);
-    return `<div class="mem"><span class="ic">${esc(t.replace(/^(avoids|likes|lives in|shoe size) /i, "").charAt(0).toUpperCase())}</span><span class="t">${esc(t)}</span><span class="s">${e.verified === false ? '<b style="color:var(--bad)">✕</b> invalid' : `<b>✓</b> signed ${esc(String(e.signed_at || "").slice(5, 10))}`}</span></div>`; }).join("")
+    return `<div class="mem"><span class="ic">${esc(t.replace(/^(avoids|likes|lives in|shoe size) /i, "").charAt(0).toUpperCase())}</span><span class="t">${esc(t)}</span><span class="s">${e.verified === false ? '<b style="color:var(--bad)">✕</b> invalid' : `<b>✓</b> signed ${esc(fmtDate(e.signed_at))}`}</span></div>`; }).join("")
     || `<div class="mem"><span class="t dim" style="font-weight:400">No signed memories yet.</span></div>`;
   // blocklist
   const bl = A.blocklist || [], first = S.seenBlk == null;
   $("#blocked").innerHTML = bl.map(b => { const fresh = !first && !S.seenBlk.has(b.merchant_id);
-    return `<div class="mem ${fresh ? "newb" : ""}"><span class="ic" style="color:var(--bad)">⊘</span><span class="t">${esc(b.merchant_name || b.merchant_id)}<div class="bsub">Prompt injection${b.at ? " · " + fmtDay(b.at) : ""}</div></span>${b.p_injection != null ? `<span class="pill block">P(inj) ${(+b.p_injection).toFixed(2)}</span>` : ""}</div>`; }).join("")
+    return `<div class="mem ${fresh ? "newb" : ""}"><span class="ic" style="color:var(--bad)">⊘</span><span class="t">${esc(b.merchant_name || b.merchant_id)}<div class="bsub">Prompt injection${b.at ? " · " + fmtDate(b.at) : ""}</div></span>${b.p_injection != null ? `<span class="pill block">${pct(b.p_injection)} injection</span>` : ""}</div>`; }).join("")
     || `<div class="mem"><span class="t dim" style="font-weight:400">No merchants blocked.</span></div>`;
   $("#blkn").textContent = bl.length;
   S.seenBlk = new Set(bl.map(b => b.merchant_id));
@@ -109,21 +110,25 @@ function renderWallet() {
   const firstRows = S.seenRows == null; S.seenRows = S.seenRows || new Set();
   const now = Date.now();
   const canUndo = r => ["pay", "hold"].includes(kind(r)) && (r.undo || {}).window_hours && (!r.window_ends_at || Date.parse(r.window_ends_at) > now);
-  const groups = [["Waiting for you", r => kind(r) === "ask"], ["Can undo", canUndo], ["Done — can't undo", r => ["pay", "hold", "done"].includes(kind(r)) && !canUndo(r)], ["Declined", r => ["decline", "block"].includes(kind(r))]];
+  const groups = [["Waiting for you", r => kind(r) === "ask"], ["Can undo", canUndo], ["Done — can't undo", r => ["pay", "hold", "done"].includes(kind(r)) && !canUndo(r)], ["Declined", r => kind(r) === "decline"], ["Blocked", r => kind(r) === "block"]];
   let html = "";
   if (!rows.length) html = `<div class="empty"><div class="ill"><i></i><i></i><i></i></div><b>No purchases yet</b>When an agent tries to buy something, it lands here the moment the wallet decides.<br><a class="btn" href="/agents">Go to Agents <span class="kbd">2</span></a></div>`;
   groups.forEach(([t, f]) => { const g = rows.filter(f);
     if (!g.length) { if (rows.length && t === "Done — can't undo") html += `<div class="grp"><h5>${t}<span class="n">0</span></h5><div class="list"><div class="mem"><span class="t dim" style="font-weight:400">Nothing final yet. Charges move here when their undo window closes.</span></div></div></div>`; return; }
     html += `<div class="grp"><h5>${t}<span class="n">${g.length}</span></h5><div class="list">${g.map(r => rowHTML(r, !firstRows && !S.seenRows.has(r.id))).join("")}</div></div>`; });
-  $("#activity").innerHTML = html;
+  // keep the page where it is while the list re-renders (approve/undo move rows between groups)
+  const sy = window.scrollY, act = $("#activity"); act.style.minHeight = act.offsetHeight + "px";
+  act.innerHTML = html; window.scrollTo(0, sy);
+  requestAnimationFrame(() => { act.style.minHeight = ""; window.scrollTo(0, Math.min(sy, document.documentElement.scrollHeight - innerHeight)); });
   rows.forEach(r => S.seenRows.add(r.id));
 }
 function rowHTML(r, isNew) {
   const k = kind(r), it = item0(r), amt = amountOf(r), facts = r.facts_used || (S.audit || {}).facts;
   return `<div class="row k-${k} ${isNew ? "newr" : ""}" data-row="${esc(r.id)}">${it.image ? `<img src="${esc(it.image)}" alt="">` : `<div></div>`}
     <div><div class="ti">${esc(r.merchant_name || r.merchant_id)} <span class="dim" style="font-weight:400">· ${esc(it.title || "")}</span></div><div class="ss">${esc(rowSub(r, facts))}</div>
+    ${lowMatch(r) ? `<div class="acts"><span class="lowchip">${esc(lowMatch(r))}</span>${r.payment_id ? `<button class="btn" data-undo="${esc(r.payment_id)}">Undo</button>` : ""}</div>` : ""}
     ${k === "ask" ? `<div class="acts"><button class="btn primary" data-decide="1" data-id="${esc(r.id)}">Approve ${gbp(amt)}</button><button class="btn" data-decide="0" data-id="${esc(r.id)}">Decline</button></div>` : ""}</div>
-    <div class="rt"><div class="am ${k === "decline" || k === "block" || k === "done" ? "strike" : ""}">${gbp(amt)}</div><span class="pill ${k}">${{pay: "Paid", hold: "Held", ask: "Your OK", decline: "Declined", block: "Blocked", done: /refund/.test(r.stripe_status) ? "Refunded" : "Cancelled", run: "…"}[k]}</span></div></div>`;
+    <div class="rt"><div class="am ${k === "decline" || k === "block" || k === "done" ? "strike" : ""}">${gbp(amt)}</div><span class="pill ${k}">${{pay: "Paid", hold: "Held", ask: "Needs your OK", decline: "Declined", block: "Blocked", done: /refund/.test(r.stripe_status) ? "Refunded" : "Cancelled", run: "…"}[k]}</span></div></div>`;
 }
 
 /* ---------------- detail sheet ---------------- */
@@ -164,22 +169,22 @@ function renderSheet() {
   let record = "";
   if (blocked) {
     const ev = blockEntry && pl(blockEntry.signed_cart), evIt = ev && (ev.items || [])[0], note = evIt && evIt.description;
-    record = `<div class="sec"><h4><span>The record</span><span>Cognee provider history</span></h4><dl class="kv"><dt>Flagged</dt><dd>${blockEntry && blockEntry.at ? new Date(blockEntry.at).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"}) : "earlier"} · prompt injection</dd>${blockEntry && blockEntry.p_injection != null ? `<dt>P(injection)</dt><dd class="bad-t">${pct(blockEntry.p_injection)}</dd>` : ""}<dt>Evidence</dt><dd>${ev ? `earlier signed cart from ${esc(blockEntry.merchant_name || r.merchant_id)}` : "provider history"}</dd></dl>
+    record = `<div class="sec"><h4><span>The record</span><span>Cognee provider history</span></h4><dl class="kv"><dt>Flagged</dt><dd>${blockEntry && blockEntry.at ? fmtDate(blockEntry.at) : "earlier"} · prompt injection</dd>${blockEntry && blockEntry.p_injection != null ? `<dt>Injection risk</dt><dd class="bad-t">${pct(blockEntry.p_injection)}</dd>` : ""}<dt>Evidence</dt><dd>${ev ? `earlier signed cart from ${esc(blockEntry.merchant_name || r.merchant_id)}` : "provider history"}</dd></dl>
       ${note ? `<div class="sig" style="color:#ffb3b5;border-color:rgba(242,86,91,.35)">Hidden in their signed cart: “${esc(note)}”</div>` : ""}
       <div class="cap dim" style="font:13px var(--mono);margin-top:8px">This cart was never sent for checking — the blocklist stops it first.</div></div>`;
   }
-  const scores = blocked || (r.p_match == null && r.p_injection == null) ? "" : `<div class="sec"><h4><span>The wallet's check</span><span class="tagc">${esc(r.eval_source === "claude" ? "Claude" : "Jev")}</span></h4>
-      ${(r.undo || {}).window_hours ? mbar("Matches what you asked", r.p_match, null, r.p_match >= .8 ? "var(--ok)" : "var(--warn)", "P(match) · undoable, so the wallet pays whatever this is — you can cancel free")
-        : mbar("Matches what you asked", r.p_match, .25, r.p_match >= .8 ? "var(--ok)" : r.p_match >= .25 ? "var(--warn)" : "var(--bad)", "P(match) · final sale: below 25% declines · above that, pays if expected loss ≤ £10, else asks you")}
-      ${mbar("Trying to trick your agent", r.p_injection, .8, inj ? "var(--bad)" : "var(--tx-3)", "P(injection) · at 80%+ the merchant is blocked")}</div>`;
+  const scores = blocked || (r.p_match == null && r.p_injection == null) ? "" : `<div class="sec"><h4><span>The wallet's check</span><span class="tagc">${esc(r.eval_source === "claude" ? "Claude" : JEV_LONG)}</span></h4>
+      ${(r.undo || {}).window_hours ? mbar("Matches what you asked", r.p_match, null, r.p_match >= .8 ? "var(--ok)" : "var(--warn)", "Match · undoable, so the wallet pays whatever this is — you can cancel free")
+        : mbar("Matches what you asked", r.p_match, .25, r.p_match >= .8 ? "var(--ok)" : r.p_match >= .25 ? "var(--warn)" : "var(--bad)", "Match · final sale: below 25% declines · above that, pays if expected loss ≤ £10, else asks you")}
+      ${mbar("Trying to trick your agent", r.p_injection, .8, inj ? "var(--bad)" : "var(--tx-3)", "Injection risk · at 80%+ the merchant is blocked")}</div>`;
   const u = r.undo || {};
   const money = `<div class="sec"><h4><span>Money & undo</span></h4><dl class="kv">
       <dt>Undo terms</dt><dd>${u.window_hours ? `free cancel · ${windowText(u.window_hours)} · ${gbp(u.fee_pence)} fee` : "final sale — no undo"}</dd>
-      ${r.window_ends_at ? `<dt>Undo until</dt><dd>${new Date(r.window_ends_at).toLocaleString("en-GB", {day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"})}</dd>` : ""}
+      ${r.window_ends_at ? `<dt>Undo until</dt><dd>${fmtDate(r.window_ends_at, true)}</dd>` : ""}
       ${r.undo_cost_pence != null ? `<dt>Cost to undo</dt><dd>${gbp(r.undo_cost_pence)}</dd>` : ""}
       ${u.window_hours ? `<dt>Why it could pay</dt><dd>undoable — free cancel, so no match floor or £10 limit</dd>` : ""}
       ${r.expected_loss_pence != null && !u.window_hours ? `<dt>Expected loss</dt><dd><span class="${r.expected_loss_pence > 1000 ? "warn-t" : ""}">${gbp(r.expected_loss_pence)}</span> <span class="dim">/ £10.00 auto limit${r.expected_loss_pence > 1000 ? " · over" : ""}</span></dd>` : ""}
-      <dt>Rule</dt><dd>${esc(r.rule)}</dd>
+      <dt>Rule</dt><dd>${esc(pctify(r.rule))}</dd>
       <dt>Stripe</dt><dd>${r.payment_id ? `${esc(r.payment_id)} · ${esc(r.stripe_status)} · ${r.payment_mode === "hold" ? "card hold, not captured" : "charged"}` : "no payment made"}</dd></dl></div>`;
   const fu = r.facts_used || [];
   const factsSec = blocked || !fu.length ? "" : `<div class="sec"><h4><span>Signed memories used</span><span>${fu.length} of ${total}${(r.facts_method || "cognee") === "cognee" ? ", chosen by Cognee" : ""}</span></h4>
@@ -190,7 +195,7 @@ function renderSheet() {
       <div class="edges">${(cited || []).map(c => typeof c === "string" ? `<span class="edge">${esc(c)}</span>` : `<span class="edge">${esc(c.source || c.subject || "George")} → <b>${esc(c.relationship_name || c.relation || "")}</b> → ${esc(c.target ?? c.object ?? "")} <span class="ok-t">✓</span></span>`).join("")}</div></div>`;
   const sig = si && si.signature;
   const signed = `<div class="sec"><h4><span>Signed request</span>${si ? '<span class="ok-t">✓ verified</span>' : ""}</h4><dl class="kv">
-      <dt>Request</dt><dd>“${esc(r.request || sip.request || "")}”</dd>${(r.max_pence || sip.max_pence) ? `<dt>Limit</dt><dd>${gbp(r.max_pence || sip.max_pence)}</dd>` : ""}${sip.expires_at ? `<dt>Expires</dt><dd>${esc(new Date(sip.expires_at).toLocaleString("en-GB", {hour: "2-digit", minute: "2-digit", day: "numeric", month: "short"}))}</dd>` : ""}<dt>Intent hash</dt><dd style="word-break:break-all">${esc(r.intent_hash)}</dd><dt>Cart signature</dt>${blocked ? `<dd class="dim">not checked — merchant blocked first</dd>` : r.signature_ok == null ? `<dd class="dim">not checked</dd>` : `<dd class="${r.signature_ok ? "ok-t" : "bad-t"}">signed by ${esc(r.merchant_name || r.merchant_id)} ${r.signature_ok ? "✓" : "✕"}</dd>`}</dl>
+      <dt>Request</dt><dd>“${esc(r.request || sip.request || "")}”</dd>${(r.max_pence || sip.max_pence) ? `<dt>Limit</dt><dd>${gbp(r.max_pence || sip.max_pence)}</dd>` : ""}${sip.expires_at ? `<dt>Expires</dt><dd>${esc(fmtDate(sip.expires_at, true))}</dd>` : ""}<dt>Intent hash</dt><dd style="word-break:break-all">${esc(r.intent_hash)}</dd><dt>Cart signature</dt>${blocked ? `<dd class="dim">not checked — merchant blocked first</dd>` : r.signature_ok == null ? `<dd class="dim">not checked</dd>` : `<dd class="${r.signature_ok ? "ok-t" : "bad-t"}">signed by ${esc(r.merchant_name || r.merchant_id)} ${r.signature_ok ? "✓" : "✕"}</dd>`}</dl>
       ${sig ? `<div class="sig">ed25519 · user-george · ${esc(sig)}</div>` : ""}</div>`;
   const traceSec = (r.trace || []).length ? `<div class="sec"><h4><span>How the wallet checked</span><span>${traceTotal(r.trace)} ms</span></h4>${checkRows(r.trace)}</div>` : "";
   const ag = r.agent_id ? `<a class="btn ghost" href="/agents#agent=${encodeURIComponent(r.agent_id)}${r.run_id ? "&run=" + encodeURIComponent(r.run_id) : ""}">Agent trace →</a>` : "";
@@ -198,8 +203,9 @@ function renderSheet() {
   <div class="db sheet">
     <div class="hero">${it.image ? `<img src="${esc(it.image)}" alt="">` : "<div></div>"}<div><div class="dim">${esc(it.title || "")}${r.agent_id ? " · via " + esc(r.agent_id) : ""}</div>
       <div class="amt ${["decline", "block", "done"].includes(k) ? "dim" : ""}">${["decline", "block", "done"].includes(k) ? "£0.00" : gbp(amt)}</div>
-      <div class="muted" style="margin-top:4px">${k === "hold" ? "On hold, not charged" : k === "pay" ? "Charged" : k === "ask" ? "Not charged — waiting for you" : "Nothing charged"}${r.window_ends_at && ["pay", "hold"].includes(k) ? ` · undo until ${fmtDay(r.window_ends_at)}` : u.window_hours ? "" : " · final sale"}</div>
-      ${acts ? `<div class="sheet-acts">${acts}</div>` : ""}</div></div>
+      <div class="muted" style="margin-top:4px">${k === "hold" ? "On hold, not charged" : k === "pay" ? "Charged" : k === "ask" ? "Not charged — waiting for you" : "Nothing charged"}${r.window_ends_at && ["pay", "hold"].includes(k) ? ` · undo until ${fmtDate(r.window_ends_at, true)}` : u.window_hours ? "" : " · final sale"}</div>
+      ${lowMatch(r) ? `<div style="margin-top:12px"><span class="lowchip">${esc(lowMatch(r))}</span></div><div class="muted" style="margin-top:6px">The wallet bought this only because undo is free.</div>` : ""}
+      ${lowMatch(r) && r.payment_id ? `<div class="sheet-acts"><button class="btn primary" data-undo="${esc(r.payment_id)}">Undo for free</button>${k === "hold" ? `<button class="btn" data-close>Keep it</button>` : ""}</div>` : acts ? `<div class="sheet-acts">${acts}</div>` : ""}</div></div>
     <div class="sec"><h4><span>Why</span>${inj ? '<span class="bad-t">prompt injection</span>' : ""}</h4><div class="why">${esc(whyText(r, facts, blockEntry))}</div></div>
     ${record}${compare}
     <div class="cols"><div class="col">${scores}${money}${factsSec}${cognee}</div><div class="col">${traceSec}${signed}</div></div>
@@ -229,10 +235,15 @@ function renderMemory() {
       es.forEach(e => { const a = (f.a0 + step * (k + .5)) * D; pos[e.id] = {a, x: cx + Math.cos(a) * RX, y: cy + Math.sin(a) * RY}; k++; });
       glab.push({g, a: (f.a0 + step * ((s0 + k) / 2)) * D}); k += gap; }); });
   const sel = S.mem;
-  let svg = `<svg viewBox="0 0 ${W} ${H}">`;
+  // fit the viewBox to what is drawn: node dots, their labels (≈8.6 units/char at 16px) and the hub caption
+  const lab = e => Math.min(e.text.length, 26) * 8.6 + 16;
+  let x0b = cx - 80, x1b = cx + 80, y0b = cy - 40, y1b = cy + 62;
+  edges.forEach(e => { const q = pos[e.id], r = Math.cos(q.a) > 0; x0b = Math.min(x0b, r ? q.x - 8 : q.x - lab(e)); x1b = Math.max(x1b, r ? q.x + lab(e) : q.x + 8); y0b = Math.min(y0b, q.y - 14); y1b = Math.max(y1b, q.y + 14); });
+  const pad = 12;
+  let svg = `<svg viewBox="${x0b - pad} ${y0b - pad} ${x1b - x0b + 2 * pad} ${y1b - y0b + 2 * pad}">`;
   edges.forEach(e => { const q = pos[e.id], c = Math.cos(q.a), sN = Math.sin(q.a); const x0 = cx + c * 34, y0 = cy + sN * 34, x1 = q.x - c * 6, y1 = q.y - sN * 6;
     const on = rel.has(e.id), hot = sel === e.id;
-    svg += `<line class="e ${on ? "rel" : ""}" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" style="${hot && !on ? "stroke:#fff;opacity:1;" : ""}${!on && rel.size && !hot ? "opacity:.6" : ""}"/>`;
+    svg += `<line class="e ${on ? "rel" : ""} ${hot ? "hot" : ""} ${!on && rel.size ? "dimmed" : ""}" data-l="${esc(e.id)}" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`;
     if (on) svg += `<line class="e flow" x1="${x1}" y1="${y1}" x2="${x0}" y2="${y0}"/>`; });
   glab.forEach(({g, a}) => { const x = cx + Math.cos(a) * RX * .74, y = cy + Math.sin(a) * RY * .74, w = g.length * 8.4 + 18;
     svg += `<rect x="${x - w / 2}" y="${y - 9}" width="${w}" height="16" rx="4" fill="#0e0e11" stroke="#1d1d23"/><text class="grp" x="${x}" y="${y + 3}" text-anchor="middle">${esc(g)}</text>`; });
@@ -246,14 +257,26 @@ function renderMemory() {
     <text x="${cx}" y="${cy + 5}" text-anchor="middle">George</text><rect x="${cx - 74}" y="${cy + 40}" width="148" height="16" rx="4" fill="#0e0e11"/><text class="s" x="${cx}" y="${cy + 52}" text-anchor="middle">user-george · ${edges.length} signed</text></g>
     <defs><linearGradient id="hubg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FAD3DE"/><stop offset=".5" stop-color="#F386A1"/><stop offset="1" stop-color="#C98BD6"/></linearGradient></defs></svg>`;
   $("#graph").innerHTML = svg + `<div class="ghint">hover or click a memory · every edge is signed by user-george and verified ✓</div>`;
+  S.memModel = {edges, rel, rows, G, groups};
+  renderInsp();
+}
+/* hover/click: move the selection by toggling classes — no SVG rebuild, so no flicker */
+function selectMem(id) {
+  if (!id || id === S.mem) return; S.mem = id;
+  document.querySelectorAll("#graph g.n").forEach(g => g.classList.toggle("sel", g.dataset.e === id));
+  document.querySelectorAll("#graph line.e[data-l]").forEach(l => l.classList.toggle("hot", l.dataset.l === id));
+  renderInsp();
+}
+function renderInsp() {
+  const M = S.memModel; if (!M) return; const {edges, rel, rows, G, groups} = M, sel = S.mem;
   const e = edges.find(x => x.id === sel) || edges.find(x => rel.has(x.id)) || edges[0];
   const on = rel.has(e.id), usedBy = on ? rows.filter(r => r.request === G.request && r.decision !== "block").length : 0;
   $("#insp").innerHTML = `<div class="sec"><h4><span>Signed memory</span><span class="${e.verified !== false ? "ok-t" : "bad-t"}">${e.verified !== false ? "✓ verified" : "✕ invalid"}</span></h4>
     <div class="big">${esc(e.text)}</div>
     <div class="trip">George → <b>${esc(e.relation)}</b> → ${esc(e.object)}</div>
-    <dl class="kv">${e.signed_at ? `<dt>Signed</dt><dd>${new Date(e.signed_at).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"})}</dd>` : ""}<dt>Signer</dt><dd>${esc(e.signer || "user-george")}</dd><dt>Group</dt><dd>${esc(e.group)}</dd>
-    <dt>Used in</dt><dd>${on ? `<span style="color:#FFC9D7">“${esc(G.request)}”</span><br>${usedBy} decisions` : "not relevant to the latest request"}</dd></dl>
-    ${e.signature ? `<div class="sig">${esc(e.signature)}</div>` : ""}</div>
+    <dl class="kv">${e.signed_at ? `<dt>Signed</dt><dd>${fmtDate(e.signed_at)}</dd>` : ""}<dt>Signer</dt><dd>${esc(e.signer || "user-george")}</dd><dt>Group</dt><dd>${esc(e.group)}</dd>
+    <dt>Used in</dt><dd>${!G.request ? "No request yet" : on ? `<span style="color:#FFC9D7">“${esc(G.request)}”</span><br>${usedBy} decisions` : "Not relevant to the latest request"}</dd></dl>
+    ${e.signature ? `<div class="sigline"><span class="h" title="${esc(e.signature)}">${esc(e.signature)}</span><button class="copy" data-copy="${esc(e.signature)}">Copy</button></div>` : ""}</div>
     <div class="mlist">${groups.map(g => `<div class="mgh">${esc(g)}</div>` + edges.filter(x => x.group === g).map(x => `<div class="mli ${rel.has(x.id) ? "rel" : ""} ${x.id === e.id ? "sel" : ""}" data-e="${esc(x.id)}"><span class="v">${rel.has(x.id) ? "●" : "✓"}</span>${esc(x.text)}<span class="r">${esc(x.relation)}</span></div>`).join("")).join("")}</div>`;
 }
 function setWTab(t) { S.wtab = t; document.querySelectorAll("#wtabs button").forEach(b => b.classList.toggle("on", b.dataset.wtab === t));
@@ -306,11 +329,12 @@ document.addEventListener("click", e => {
   if (e.target.closest("[data-mem2]")) return setWTab("memory");
   if (e.target.closest("[data-mem]")) { closeDrawer(); return setWTab("memory"); }
 });
-$("#activity").addEventListener("click", e => { if (e.target.closest("[data-decide],a")) return; const r = e.target.closest(".row"); if (r) openSheet(r.dataset.row); });
+$("#activity").addEventListener("click", e => { if (e.target.closest("[data-decide],[data-undo],a")) return; const r = e.target.closest(".row"); if (r) openSheet(r.dataset.row); });
 document.querySelectorAll("#wtabs button").forEach(b => b.onclick = () => setWTab(b.dataset.wtab));
-$("#graph").addEventListener("click", e => { const n = e.target.closest("[data-e]"); if (n) { S.mem = n.dataset.e; renderMemory(); } });
-$("#graph").addEventListener("mouseover", e => { const n = e.target.closest("[data-e]"); if (n && n.dataset.e !== S.mem) { S.mem = n.dataset.e; renderMemory(); } });
-$("#insp").addEventListener("click", e => { const n = e.target.closest("[data-e]"); if (n) { S.mem = n.dataset.e; renderMemory(); } });
+$("#graph").addEventListener("click", e => { const n = e.target.closest("[data-e]"); if (n) selectMem(n.dataset.e); });
+$("#graph").addEventListener("mouseover", e => { const n = e.target.closest("[data-e]"); if (n) selectMem(n.dataset.e); });
+document.addEventListener("click", e => { const c = e.target.closest("[data-copy]"); if (c) { try { navigator.clipboard.writeText(c.dataset.copy); toast("Signature copied"); } catch (x) {} } });
+$("#insp").addEventListener("click", e => { const n = e.target.closest("[data-e]"); if (n) selectMem(n.dataset.e); });
 document.addEventListener("keydown", e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();

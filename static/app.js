@@ -87,11 +87,11 @@ function whyText(r, facts, blockEntry) {
   const lower = s => s.charAt(0).toLowerCase() + s.slice(1);
   const mism = bad.length ? bad.map((b, i) => i ? lower(b) : b).join("; ") : "";
   const match = r.p_match != null ? ` (${pct(r.p_match)} match)` : "";
-  if (k === "block") return `${name} was flagged for prompt injection${blockEntry && blockEntry.at ? " on " + fmtDay(blockEntry.at) : " earlier"}. Blocked before any check — this cart wasn't even read.`;
+  if (k === "block") return `${name} was flagged for prompt injection${blockEntry && blockEntry.at ? (/^today/.test(fmtDate(blockEntry.at)) ? " " + fmtDate(blockEntry.at).replace(/^today/, "today at") : " on " + fmtDate(blockEntry.at)) : " earlier"}. Blocked before any check — this cart wasn't even read.`;
   if (r.check_failure) return `The wallet's ${String(r.check_failure).replace(/_/g, " ")} check failed, so it stopped before reading the cart. Nothing was charged.`;
   if (k === "decline" && isInj(r)) return `${bad.length ? mism + ". " : ""}The cart hides an instruction aimed at your agent. We declined and blocked ${name}.`;
   if (k === "decline") return `${mism || "The signed cart doesn't match what you asked for"}${match}. ${r.undo && r.undo.window_hours ? "Nothing was charged." : "Final sale, so nothing was charged."}`;
-  const pm = r.p_match != null ? ` (P(match) ${(+r.p_match).toFixed(2)})` : "";
+  const pm = r.p_match != null ? ` (${pct(r.p_match)} match)` : "";
   const look = bad.length ? " Worth a look: " + mism.charAt(0).toLowerCase() + mism.slice(1) + "." : "";
   if (k === "pay" && r.undo && r.undo.window_hours) return `Paid — free to undo for ${windowText(r.undo.window_hours)}, so the wallet didn't need to be sure${pm}.${look || " It matches your request and every signed memory it was checked against."}`;
   if (k === "pay") return `${bad.length ? mism + match + ", but the expected loss was within the £10 the wallet spends on its own" : "Matches your request and every signed memory it was checked against"}. Charged — final sale, no undo.`;
@@ -100,17 +100,33 @@ function whyText(r, facts, blockEntry) {
   if (k === "done") return `You undid this purchase. Stripe status: ${r.stripe_status}.`;
   return r.rule || "";
 }
+/* the policy's decision as one plain line — a decline is a decision, not an error */
+function policyLine(r) {
+  const k = kind(r), w = r.undo && r.undo.window_hours;
+  if (k === "block") return "Blocked: merchant flagged for prompt injection";
+  if (k === "decline" && r.check_failure) return `Declined: ${String(r.check_failure).replace(/_/g, " ")} check failed`;
+  if (k === "decline" && isInj(r)) return `Declined by policy: ${pct(r.p_injection)} injection ≥ 80% · merchant blocked`;
+  if (k === "decline") return `Declined by policy: ${w ? "" : "final sale, "}${pct(r.p_match)} match < 25%`;
+  if (k === "ask") return `Your call: ${w ? "" : "final sale, "}expected loss ${gbp(r.expected_loss_pence)} > £10`;
+  return null;
+}
+/* paid/held only because undo is free: say so loudly */
+function lowMatch(r) {
+  const k = kind(r), w = r.undo && r.undo.window_hours;
+  if (!["pay", "hold"].includes(k) || !w || r.p_match == null || r.p_match >= 0.8) return null;
+  return `${r.p_match < 0.5 ? "Low" : "Partial"} match · ${pct(r.p_match)} — free to undo for ${windowText(w)}`;
+}
 function rowSub(r, facts) {
   const k = kind(r), it = item0(r), bad = cartLines(it, r, facts).filter(l => l[0] === "no");
   const w = r.undo && r.undo.window_hours;
+  if (k === "pay" && bad[0] && w) return `Signed cart: ${bad[0][1]}`;
   if (k === "pay") return w ? `Free cancel for ${windowText(w)}` : "Charged · final sale";
   if (k === "hold") return `On hold · free cancel for ${windowShort(w)}${bad[0] ? " · " + bad[0][1].split(" — ")[0] : ""}`;
   if (k === "ask") return `${w ? "Over the auto limit" : "Final sale"} · ${gbp(r.expected_loss_pence)} at risk`;
   if (k === "block") return "Blocked on past record";
   if (k === "done") return /refund/.test(r.stripe_status) ? "Refunded" : "Cancelled · nothing charged";
-  if (isInj(r)) return "Hidden instruction in listing · merchant blocked";
-  if (r.check_failure) return "Failed check: " + String(r.check_failure).replace(/_/g, " ");
-  if (bad[0]) return "Signed cart: " + bad[0][1];
+  if (isInj(r)) return policyLine(r).replace(" · merchant blocked", "") + " · hidden instruction, merchant blocked";
+  if (k === "decline") return policyLine(r) + (bad[0] ? " · " + bad[0][1] : "");
   return r.rule || "";
 }
 
@@ -125,12 +141,39 @@ function hl(obj) {
 const jbox = (title, obj, right = "") => `<div class="json"><div class="jh"><span>${title}</span><span>${right}</span></div><pre>${hl(obj ?? null)}</pre></div>`;
 
 /* wallet check trace rows */
-function checkRows(trace) {
-  let prev = 0;
-  return `<div class="checks">${(trace || []).map(c => { const skip = c.ok == null && /^skipped/i.test(c.detail || ""); const d = Math.max(0, Math.round((c.t_ms || 0) - prev)); prev = c.t_ms || prev;
-    const s = c.ok === true ? '<span class="ok-t">✓</span>' : c.ok === false ? '<span class="bad-t">✕</span>' : skip ? '<span class="dim">–</span>' : '<span class="warn-t">!</span>';
-    const name = /^jev$/i.test(c.step) ? "Jev" : c.step;
-    return `<div class="cr ${skip ? "skip" : ""}"><span class="s">${s}</span><span class="nm">${esc(name)}</span><span class="dt">${esc(c.detail)}</span><span class="ms">${skip ? "" : d + " ms"}</span></div>`; }).join("")}</div>`;
+/* opts.spans: check spans (name = step) — when present they are the single source for durations
+   opts.jevLong: label Jev in full (first mention in a drawer) */
+const JEV_LONG = "Jev · TypeSafe's match model", JEV_TIP = "Jev — TypeSafe's match model";
+function checkRows(trace, opts = {}) {
+  let prev = 0; const sp = opts.spans || [];
+  return `<div class="checks">${(trace || []).map(c => { const skip = c.ok == null && /^skipped/i.test(c.detail || ""); let d = Math.max(0, Math.round((c.t_ms || 0) - prev)); prev = c.t_ms || prev;
+    const span = sp.find(x => x.name === c.step || x.name === String(c.step).replace(/ /g, "_") || (x.attrs || {}).step === c.step);
+    if (span && span.end_ms != null) d = Math.round(span.end_ms - span.start_ms);
+    const pol = /^policy$/i.test(c.step);
+    const s = pol ? `<span class="${c.ok === true ? "ok-t" : c.ok === false ? "bad-t" : "warn-t"}">→</span>` : c.ok === true ? '<span class="ok-t">✓</span>' : c.ok === false ? '<span class="bad-t">✕</span>' : skip ? '<span class="dim">–</span>' : '<span class="warn-t">!</span>';
+    const det = pol ? String(c.detail || "").replace(/^(pay|decline|ask|block):\s*/i, (m, d) => ({pay: "Pay — ", decline: "Declined — ", ask: "Ask you — ", block: "Blocked — "})[d.toLowerCase()]) : c.detail;
+    const jev = /^jev$/i.test(c.step), name = jev ? (opts.jevLong ? JEV_LONG : "Jev") : c.step;
+    return `<div class="cr ${skip ? "skip" : ""}"><span class="s">${s}</span><span class="nm" ${jev ? `title="${JEV_TIP}"` : ""}>${esc(name)}</span><span class="dt">${esc(pctify(det))}</span><span class="ms">${skip ? "" : d + " ms"}</span></div>`; }).join("")}</div>`;
+}
+/* "P(match) 0.94" → "94% match", "p < 0.25" → "match < 25%" — one format for scores in UI copy */
+function pctify(t) {
+  return String(t ?? "")
+    .replace(/P\(match\)\s*([<>≤≥]=?)\s*(0?\.\d+|1(?:\.0+)?)/gi, (m, op, v) => `match ${op} ${Math.round(v * 100)}%`)
+    .replace(/P\(inj(?:ection)?\)\s*([<>≤≥]=?)\s*(0?\.\d+|1(?:\.0+)?)/gi, (m, op, v) => `injection ${op} ${Math.round(v * 100)}%`)
+    .replace(/P\(match\)\s*(0?\.\d+|1(?:\.0+)?)/gi, (m, v) => `${Math.round(v * 100)}% match`)
+    .replace(/P\(inj(?:ection)?\)\s*(0?\.\d+|1(?:\.0+)?)/gi, (m, v) => `${Math.round(v * 100)}% injection`)
+    .replace(/\bp\s*([<>≤≥]=?)\s*(0?\.\d+)/g, (m, op, v) => `match ${op} ${Math.round(v * 100)}%`)
+    .replace(/(\d+%)\s*([<>≤≥]=?)\s*p\s*([<>≤≥]=?)\s*(0?\.\d+)/g, (m, a, op1, op2, v) => `${a} ${op1} match ${op2} ${Math.round(v * 100)}%`)
+    .replace(/(0?\.\d+)\s*([<>≤≥]=?)\s*p\b/g, (m, v, op) => `${Math.round(v * 100)}% ${op} match`)
+    .replace(/(\d+% (?:match|injection))\s*([<>≤≥]=?)\s*(0?\.\d+|1(?:\.0+)?)(\s*floor)?/g, (m, a, op, v) => `${a} ${op} ${Math.round(v * 100)}%`)
+    .replace(/(\d+% match) · \1/g, "$1");
+}
+/* one date format: "today 19:20" or "15 Oct 2026" */
+function fmtDate(d, withTime) {
+  if (!d) return ""; const x = new Date(d); if (isNaN(x)) return String(d);
+  const t = x.toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit"});
+  if (x.toDateString() === new Date().toDateString()) return "today " + t;
+  return x.toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"}).replace("Sept", "Sep") + (withTime ? " " + t : "");
 }
 const traceTotal = tr => (tr && tr.length) ? Math.round(tr[tr.length - 1].t_ms || 0) : 0;
 
@@ -155,8 +198,9 @@ function verdictBig(row) {
 function verdict(row, facts) {
   const k = kind(row), amt = amountOf(row);
   return `<div class="verdict ${k}"><div class="big">${verdictBig(row)}</div><div class="amt">${k === "pay" || k === "hold" ? gbp(amt) : k === "ask" ? gbp(row.expected_loss_pence) + " at risk" : "£0.00"}</div>
+    ${lowMatch(row) ? `<div style="margin:8px 0 2px"><span class="lowchip">${esc(lowMatch(row))}</span></div>` : ""}
     <div class="why">${esc(whyText(row, facts))}</div>
-    <div class="meta"><span>rule: ${esc(row.rule)}</span>${row.p_match != null ? `<span>P(match) ${(+row.p_match).toFixed(2)}</span>` : ""}${row.p_injection != null ? `<span>P(inj) ${(+row.p_injection).toFixed(2)}</span>` : ""}${row.payment_id ? `<span>stripe ${esc(row.payment_id)} · ${esc(row.stripe_status)}</span>` : ""}<span>${esc(row.id)}</span></div></div>`;
+    <div class="meta"><span>rule: ${esc(pctify(row.rule))}</span>${row.p_match != null ? `<span>${pct(row.p_match)} match</span>` : ""}${row.p_injection != null ? `<span>${pct(row.p_injection)} injection</span>` : ""}${row.payment_id ? `<span>stripe ${esc(row.payment_id)} · ${esc(row.stripe_status)}</span>` : ""}<span>${esc(row.id)}</span></div></div>`;
 }
 
 /* ---------------- top bar (shared) ---------------- */
