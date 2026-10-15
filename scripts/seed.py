@@ -17,7 +17,33 @@ from app.config import COGNEE_DIR
 from app.models import Fact
 
 KEY_ID = "user-george"
-FACTS = [("waist_size", "34"), ("prefers_fit", "slim"), ("avoids_material", "polyester")]
+FACTS = [
+    ("waist_size", "34"),
+    ("prefers_fit", "slim"),
+    ("avoids_material", "polyester"),
+    ("shoe_size", "UK 10"),
+    ("tshirt_size", "M"),
+    ("allergic_to", "peanuts"),
+    ("diet", "vegetarian"),
+    ("lives_in", "London"),
+    ("prefers_seat", "aisle"),
+    ("favourite_colour", "navy"),
+    ("coffee_order", "flat white"),
+    ("hotel_budget_per_night", "£180"),
+    ("has_dog", "Biscuit"),
+    ("phone_model", "iPhone 16"),
+    ("prefers_delivery", "weekday mornings"),
+    ("avoids_scent", "strong fragrances"),
+    ("reads_on", "Kindle"),
+    ("commutes_by", "bicycle"),
+    ("plays_sport", "tennis"),
+    ("music_service", "Spotify"),
+    ("favourite_cuisine", "Japanese"),
+    ("birthday_month", "March"),
+    ("preferred_supermarket", "Waitrose"),
+    ("laptop_model", "MacBook Air"),
+    ("bed_size", "king"),
+]
 
 
 class Person(DataPoint):
