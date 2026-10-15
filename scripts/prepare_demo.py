@@ -31,17 +31,18 @@ async def preflag_shady() -> None:
     intent = signing.sign({"request": EARLIER_REQUEST, "max_pence": 8000,
                            "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
                            "nonce": secrets.token_hex(8)}, "user-george")
-    signed_cart = merchants.make_offer("E", signing.sha256_hex(intent))
-    facts = await memory.load_verified_facts()
-    sentences = evaluator.render_facts(facts)
+    signed_cart = merchants.shady_earlier_cart(signing.sha256_hex(intent))
+    assert signing.verify(signed_cart, "merchant-shady")
+    rel = await memory.relevant_facts(EARLIER_REQUEST)
+    sentences = evaluator.render_facts(rel["facts"])
     for attempt in range(1, TRIES + 1):
         probs = await asyncio.to_thread(evaluator.evaluate, EARLIER_REQUEST, sentences, signed_cart["payload"]["items"])
         print(f"Shady Denim's earlier cart: P(match) {probs['p_match']:.2f}, P(injection) {probs['p_injection']:.2f} "
-              f"({probs['source']}, {len(facts)} verified facts)")
+              f"({probs['source']}, {len(rel['facts'])} of {rel['total']} signed memories, {rel['method']})")
         if probs["p_injection"] >= policy.INJECTION_THRESHOLD:
-            await memory.flag_injection("E", probs["p_injection"], signed_cart)
+            await memory.flag_injection("shady", probs["p_injection"], signed_cart, prepared=True)
             await memory.wait_for_mirrors()
-            print("Flagged Shady Denim (merchant-E) for prompt injection in provider history.")
+            print("Flagged Shady Denim (merchant-shady) for prompt injection in provider history.")
             return
         print(f"  below the {policy.INJECTION_THRESHOLD} threshold (attempt {attempt}/{TRIES})")
     raise SystemExit("evaluator did not flag Shady Denim's injected cart; not pre-flagging")
