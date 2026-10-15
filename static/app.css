@@ -570,3 +570,4 @@ a{color:inherit;text-decoration:none}
 .span,.end{top:8px} .wsub{top:32px} .wlab{top:11px;line-height:1.2}
 @media (max-width:1380px){ .stat .v small{display:none} }
 .memgrid{align-items:start} .graph .hub text{font-size:14px} .graph .hub .s{font-size:12.5px}
+.lowchip{display:inline-flex;align-items:center;font:600 13px var(--mono);color:var(--warn);background:var(--warn-2);box-shadow:inset 0 0 0 1px rgba(245,165,36,.4);padding:4px 9px;border-radius:6px} .acts{align-items:center;flex-wrap:wrap}

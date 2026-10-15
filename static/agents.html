@@ -138,7 +138,9 @@ function renderGantt() {
           const cls = c.ok === true ? "" : c.ok === false ? "bad" : /^skipped/i.test(c.detail || "") ? "skip" : "warn";
           sub += `<i class="chk ${cls}" style="left:${s0}%;width:calc(${Math.max(e0 - s0, 0)}% - 1px);min-width:3px" title="${esc(c.step + " · " + c.detail)}"></i>`; });
         const jev = full.find(c => /jev/i.test(c.step)), failed = full.find(c => c.ok === false);
-        const lab = row ? `wallet · <b>${traceTotal(full)} ms</b> · ${failed ? `<span class="bad-t">✕ ${esc(failed.step)}</span>` : jev ? esc(pctify(String(jev.detail || "").split(" · ")[0])) : ""}` : `wallet · checking…`;
+        // a policy "failure" is the decision itself — say what was decided rather than show an error ✕
+        const polFail = failed && /^policy$/i.test(failed.step);
+        const lab = row ? `wallet · <b>${traceTotal(full)} ms</b> · ${polFail ? `<span class="${kind(row) === "ask" ? "warn-t" : "bad-t"}">${esc(LABEL[kind(row)] || kind(row))} by policy: ${esc(pctify(row.rule))}</span>` : failed ? `<span class="bad-t">✕ ${esc(failed.step)}</span>` : jev ? esc(pctify(String(jev.detail || "").split(" · ")[0])) : ""}` : `wallet · checking…`;
         tr += `<div class="wsub" style="left:${x(sp.s)};width:${w(sp.s, sp.s + dur)}"><i class="conn"></i>${sub}<span class="wlab">${lab}</span></div>`;
       }
     });

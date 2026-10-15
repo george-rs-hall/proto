@@ -100,9 +100,16 @@ function whyText(r, facts, blockEntry) {
   if (k === "done") return `You undid this purchase. Stripe status: ${r.stripe_status}.`;
   return r.rule || "";
 }
+/* paid/held only because undo is free: say so loudly */
+function lowMatch(r) {
+  const k = kind(r), w = r.undo && r.undo.window_hours;
+  if (!["pay", "hold"].includes(k) || !w || r.p_match == null || r.p_match >= 0.8) return null;
+  return `${r.p_match < 0.5 ? "Low" : "Partial"} match · ${pct(r.p_match)} — free to undo for ${windowText(w)}`;
+}
 function rowSub(r, facts) {
   const k = kind(r), it = item0(r), bad = cartLines(it, r, facts).filter(l => l[0] === "no");
   const w = r.undo && r.undo.window_hours;
+  if (k === "pay" && bad[0] && w) return `Signed cart: ${bad[0][1]}`;
   if (k === "pay") return w ? `Free cancel for ${windowText(w)}` : "Charged · final sale";
   if (k === "hold") return `On hold · free cancel for ${windowShort(w)}${bad[0] ? " · " + bad[0][1].split(" — ")[0] : ""}`;
   if (k === "ask") return `${w ? "Over the auto limit" : "Final sale"} · ${gbp(r.expected_loss_pence)} at risk`;

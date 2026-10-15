@@ -126,6 +126,7 @@ function rowHTML(r, isNew) {
   const k = kind(r), it = item0(r), amt = amountOf(r), facts = r.facts_used || (S.audit || {}).facts;
   return `<div class="row k-${k} ${isNew ? "newr" : ""}" data-row="${esc(r.id)}">${it.image ? `<img src="${esc(it.image)}" alt="">` : `<div></div>`}
     <div><div class="ti">${esc(r.merchant_name || r.merchant_id)} <span class="dim" style="font-weight:400">· ${esc(it.title || "")}</span></div><div class="ss">${esc(rowSub(r, facts))}</div>
+    ${lowMatch(r) ? `<div class="acts"><span class="lowchip">${esc(lowMatch(r))}</span>${r.payment_id ? `<button class="btn" data-undo="${esc(r.payment_id)}">Undo</button>` : ""}</div>` : ""}
     ${k === "ask" ? `<div class="acts"><button class="btn primary" data-decide="1" data-id="${esc(r.id)}">Approve ${gbp(amt)}</button><button class="btn" data-decide="0" data-id="${esc(r.id)}">Decline</button></div>` : ""}</div>
     <div class="rt"><div class="am ${k === "decline" || k === "block" || k === "done" ? "strike" : ""}">${gbp(amt)}</div><span class="pill ${k}">${{pay: "Paid", hold: "Held", ask: "Needs your OK", decline: "Declined", block: "Blocked", done: /refund/.test(r.stripe_status) ? "Refunded" : "Cancelled", run: "…"}[k]}</span></div></div>`;
 }
@@ -203,7 +204,8 @@ function renderSheet() {
     <div class="hero">${it.image ? `<img src="${esc(it.image)}" alt="">` : "<div></div>"}<div><div class="dim">${esc(it.title || "")}${r.agent_id ? " · via " + esc(r.agent_id) : ""}</div>
       <div class="amt ${["decline", "block", "done"].includes(k) ? "dim" : ""}">${["decline", "block", "done"].includes(k) ? "£0.00" : gbp(amt)}</div>
       <div class="muted" style="margin-top:4px">${k === "hold" ? "On hold, not charged" : k === "pay" ? "Charged" : k === "ask" ? "Not charged — waiting for you" : "Nothing charged"}${r.window_ends_at && ["pay", "hold"].includes(k) ? ` · undo until ${fmtDate(r.window_ends_at, true)}` : u.window_hours ? "" : " · final sale"}</div>
-      ${acts ? `<div class="sheet-acts">${acts}</div>` : ""}</div></div>
+      ${lowMatch(r) ? `<div style="margin-top:12px"><span class="lowchip">${esc(lowMatch(r))}</span></div><div class="muted" style="margin-top:6px">The wallet bought this only because undo is free.</div>` : ""}
+      ${lowMatch(r) && r.payment_id ? `<div class="sheet-acts"><button class="btn primary" data-undo="${esc(r.payment_id)}">Undo for free</button>${k === "hold" ? `<button class="btn" data-close>Keep it</button>` : ""}</div>` : acts ? `<div class="sheet-acts">${acts}</div>` : ""}</div></div>
     <div class="sec"><h4><span>Why</span>${inj ? '<span class="bad-t">prompt injection</span>' : ""}</h4><div class="why">${esc(whyText(r, facts, blockEntry))}</div></div>
     ${record}${compare}
     <div class="cols"><div class="col">${scores}${money}${factsSec}${cognee}</div><div class="col">${traceSec}${signed}</div></div>
@@ -327,7 +329,7 @@ document.addEventListener("click", e => {
   if (e.target.closest("[data-mem2]")) return setWTab("memory");
   if (e.target.closest("[data-mem]")) { closeDrawer(); return setWTab("memory"); }
 });
-$("#activity").addEventListener("click", e => { if (e.target.closest("[data-decide],a")) return; const r = e.target.closest(".row"); if (r) openSheet(r.dataset.row); });
+$("#activity").addEventListener("click", e => { if (e.target.closest("[data-decide],[data-undo],a")) return; const r = e.target.closest(".row"); if (r) openSheet(r.dataset.row); });
 document.querySelectorAll("#wtabs button").forEach(b => b.onclick = () => setWTab(b.dataset.wtab));
 $("#graph").addEventListener("click", e => { const n = e.target.closest("[data-e]"); if (n) selectMem(n.dataset.e); });
 $("#graph").addEventListener("mouseover", e => { const n = e.target.closest("[data-e]"); if (n) selectMem(n.dataset.e); });
