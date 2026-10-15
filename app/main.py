@@ -1,6 +1,7 @@
 import app.config  # noqa: F401  (load .env first)
 
 import asyncio
+import json
 import logging
 import secrets
 import time
@@ -20,6 +21,7 @@ log = logging.getLogger("wallet")
 
 ROOT = Path(__file__).resolve().parent.parent
 INDEX = ROOT / "static" / "index.html"
+HISTORY = ROOT / ".wallet" / "history.json"
 USER_KEY = "user-george"
 INTENT_TTL_HOURS = 24
 STRIPE_REFRESH_SECONDS = 5
@@ -42,8 +44,45 @@ STATE = {
     "rows": [],
     "rows_by_id": {},
     "stripe_refreshed_at": 0.0,
+    "intents": {},           # intent_hash -> signed intent (every intent the wallet has signed)
+    "explanations": {},      # intent_hash -> Cognee explanation
 }
 BG_TASKS: set = set()
+
+
+def save_history() -> None:
+    try:
+        HISTORY.parent.mkdir(parents=True, exist_ok=True)
+        payments = {pid: {"merchant_id": p["merchant_id"], "window_hours": p["window_hours"],
+                          "paid_at": p["paid_at"].isoformat() if isinstance(p["paid_at"], datetime) else p["paid_at"]}
+                    for pid, p in merchants.PAYMENTS.items()}
+        data = {"intent": STATE["intent"], "intent_hash": STATE["intent_hash"], "explanation": STATE["explanation"],
+                "intents": STATE["intents"], "explanations": STATE["explanations"], "rows": STATE["rows"], "payments": payments}
+        tmp = HISTORY.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, default=str))
+        tmp.replace(HISTORY)
+    except Exception:
+        log.exception("save_history failed")
+
+
+def load_history() -> None:
+    if not HISTORY.exists():
+        return
+    try:
+        data = json.loads(HISTORY.read_text())
+    except Exception:
+        log.exception("load_history failed")
+        return
+    rows = data.get("rows") or []
+    STATE.update(intent=data.get("intent"), intent_hash=data.get("intent_hash"), explanation=data.get("explanation"),
+                 intents=data.get("intents") or {}, explanations=data.get("explanations") or {}, rows=rows, rows_by_id={r["id"]: r for r in rows})
+    for pid, p in (data.get("payments") or {}).items():
+        try:
+            merchants.register_payment(pid, p["merchant_id"], int(p["window_hours"]), parse_ts(p["paid_at"]))
+        except Exception:
+            log.exception("restore payment %s failed", pid)
+
+
 
 
 class IntentIn(BaseModel):
@@ -96,6 +135,8 @@ async def compute_explanation(request: str, intent_hash: str):
         result = await memory.explain(request)
         if STATE["intent_hash"] == intent_hash:
             STATE["explanation"] = result
+        STATE["explanations"][intent_hash] = result
+        save_history()
     except Exception:
         log.exception("explain failed")
 
@@ -124,6 +165,7 @@ def new_row(merchant_id, intent_hash, payload) -> dict:
 def store_row(row: dict) -> dict:
     STATE["rows"].append(row)
     STATE["rows_by_id"][row["id"]] = row
+    save_history()
     return row
 
 
@@ -189,7 +231,9 @@ async def post_intent(body: IntentIn):
     }
     signed_intent = signing.sign(payload, USER_KEY)
     intent_hash = signing.sha256_hex(signed_intent)
-    STATE.update(intent=signed_intent, intent_hash=intent_hash, explanation=None, rows=[], rows_by_id={})
+    STATE.update(intent=signed_intent, intent_hash=intent_hash, explanation=None)
+    STATE["intents"][intent_hash] = signed_intent
+    save_history()
     spawn(compute_explanation(body.request, intent_hash))
     spawn(load_facts())
     return {"token": signing.encode_token(signed_intent), "intent_hash": intent_hash, "signed_intent": signed_intent}
@@ -215,6 +259,7 @@ def get_offers(token: str):
 async def post_pay(body: PayIn):
     signed_intent = decode(body.token)
     intent_hash = signing.sha256_hex(signed_intent)
+    STATE["intents"].setdefault(intent_hash, signed_intent)
     if STATE["intent"] is None:
         STATE.update(intent=signed_intent, intent_hash=intent_hash)
         req = (signed_intent.get("payload") or {}).get("request", "")
@@ -287,7 +332,10 @@ def merchant_name(merchant_id) -> str | None:
 
 def public_row(row: dict) -> dict:
     out = {k: v for k, v in row.items() if not k.startswith("_")}
-    out["merchant_name"] = merchant_name(row.get("merchant_id"))
+    out["merchant_name"] = merchant_name(row.get("merchant_id")) or row.get("merchant_name")
+    intent = STATE["intents"].get(row.get("intent_hash")) or {}
+    out["request"] = (intent.get("payload") or {}).get("request")
+    out["max_pence"] = (intent.get("payload") or {}).get("max_pence")
     return out
 
 
@@ -300,6 +348,7 @@ async def post_undo(body: UndoIn):
     res = await merchants.cancel_payment(merchant_id, body.payment_id)
     if row:
         row["stripe_status"] = res.get("status")
+        save_history()
     return {"payment_id": body.payment_id, "status": res.get("status")}
 
 
@@ -314,18 +363,29 @@ async def post_decide(body: DecideIn):
         await do_pay(row, row.get("_signed_offer"), row["p_match"], "approved by user")
     else:
         row.update(decision="decline", rule="rejected by user")
+    save_history()
     return public_row(row)
 
 
+FINAL_STRIPE = {"canceled", "refunded"}
+
+
 async def refresh_stripe():
+    changed = False
     for row in list(STATE["rows"]):
         pid = row.get("payment_id")
-        if not pid:
+        if not pid or row.get("stripe_status") in FINAL_STRIPE:
             continue
         try:
-            row["stripe_status"] = await asyncio.to_thread(money.status, pid)
+            new = await asyncio.to_thread(money.status, pid)
         except Exception:
             log.exception("stripe status failed for %s", pid)
+            continue
+        if new != row.get("stripe_status"):
+            row["stripe_status"] = new
+            changed = True
+    if changed:
+        save_history()
 
 
 @app.get("/api/audit")
@@ -340,11 +400,15 @@ async def get_audit():
         "facts": [{"relation": f.get("relation"), "object": f.get("object"), "signed_at": f.get("signed_at"),
                    "verified": f.get("verified", True)} for f in STATE["facts"]],
         "explanation": STATE["explanation"],
+        "explanations": STATE["explanations"],
         "rows": [public_row(r) for r in STATE["rows"]],
         "blocklist": [{"merchant_id": m, "merchant_name": merchant_name(m), "p_injection": (ev or {}).get("p_injection"),
                        "signed_cart": (ev or {}).get("signed_cart"), "at": (ev or {}).get("at")}
                       for m, ev in blocked.items()],
     }
+
+
+load_history()
 
 
 @app.on_event("startup")
