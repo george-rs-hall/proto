@@ -9,12 +9,12 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
-from app import agent, evaluator, memory, merchants, money, policy, signing
+from app import agent, evaluator, memory, memory_api, merchants, money, policy, signing, tracing
 from app.models import CartOffer, Intent
 
 log = logging.getLogger("wallet")
@@ -29,12 +29,21 @@ STRIPE_REFRESH_SECONDS = 5
 app = FastAPI()
 app.include_router(merchants.router)
 app.include_router(agent.router)
+app.include_router(memory_api.router)
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 
 
 @app.get("/chat")
 def chat_page():
-    return FileResponse(ROOT / "static" / "chat.html")
+    return RedirectResponse("/agents")
+
+
+@app.get("/agents")
+def agents_page():
+    page = ROOT / "static" / "agents.html"
+    if page.exists():
+        return FileResponse(page)
+    return JSONResponse({"ok": True, "ui": "static/agents.html not found"})
 
 
 @app.get("/demo")
@@ -98,6 +107,8 @@ class IntentIn(BaseModel):
 class PayIn(BaseModel):
     token: str
     signed_offer: dict
+    agent_id: str | None = None
+    run_id: str | None = None
 
 
 class UndoIn(BaseModel):
@@ -135,9 +146,26 @@ async def load_facts() -> list[dict]:
         return STATE["facts"]
 
 
+_rel_locks: dict[str, asyncio.Lock] = {}
+
+
+async def relevant_facts(request: str) -> dict:
+    """memory.relevant_facts, one Cognee call per request string even when six agents pay at once."""
+    lock = _rel_locks.setdefault(request, asyncio.Lock())
+    async with lock:
+        try:
+            return await memory.relevant_facts(request)
+        except Exception as e:
+            log.exception("relevant_facts failed")
+            facts = await load_facts()
+            return {"facts": facts, "total": len(facts), "method": "fallback-all", "answer": f"(unavailable: {e})", "cited": []}
+
+
 async def compute_explanation(request: str, intent_hash: str):
     try:
-        result = await memory.explain(request)
+        rel = await relevant_facts(request)
+        result = {"answer": rel["answer"], "cited": rel["cited"], "facts": rel["facts"], "total": rel["total"],
+                  "method": rel["method"]}
         if STATE["intent_hash"] == intent_hash:
             STATE["explanation"] = result
         STATE["explanations"][intent_hash] = result
@@ -163,9 +191,52 @@ def new_row(merchant_id, intent_hash, payload) -> dict:
         "undo": dict((payload or {}).get("undo") or {"window_hours": None, "cancel_url": None, "fee_pence": None}),
         "undo_cost_pence": None, "expected_loss_pence": None, "decision": None, "rule": None,
         "payment_id": None, "payment_mode": None, "stripe_status": None, "window_ends_at": None,
-        "merchant_name": merchant_name(merchant_id),
+        "merchant_name": merchant_name(merchant_id), "trace": [], "agent_id": None, "run_id": None,
+        "trace_id": None, "span_id": None, "facts_total": None, "facts_method": None,
     }
     return row
+
+
+STEP_KIND = {"signed memories": "cognee", "Jev": "jev", "Stripe": "stripe"}
+
+
+class Tracer:
+    """One timer for both views: row["trace"] steps (t_ms = end of step since the wallet got the request) and,
+    when the caller sent a known traceparent, wallet spans in the run trace built from the same numbers."""
+
+    def __init__(self, row: dict, traceparent: str | None = None, name: str = "wallet /api/pay"):
+        self.row = row
+        self.t0 = time.perf_counter()
+        self.wall0 = time.time()
+        self.span = None
+        self.prev = 0
+        ctx = tracing.parse_traceparent(traceparent)
+        if ctx and tracing.known(ctx[0]):
+            self.base = tracing.ms_at(ctx[0], self.wall0)
+            self.span = tracing.start(ctx[0], name, "wallet", ctx[1],
+                                      {"row_id": row["id"], "merchant_id": row.get("merchant_id")}, start_ms=self.base)
+            row["trace_id"], row["span_id"] = ctx[0], self.span["span_id"]
+
+    def ms(self) -> int:
+        return round((time.perf_counter() - self.t0) * 1000)
+
+    def add(self, step: str, ok, detail: str, **attrs) -> None:
+        t = self.ms()
+        self.row.setdefault("trace", []).append({"t_ms": t, "step": step, "ok": ok, "detail": detail})
+        if self.span:
+            sp = tracing.start(self.span["trace_id"], step, STEP_KIND.get(step, "check"), self.span["span_id"],
+                               {"ok": ok, "detail": detail, **attrs}, start_ms=round(self.base + self.prev, 1))
+            tracing.end(sp, "ok", end_ms=round(self.base + t, 1))
+        self.prev = t
+
+    def finish(self) -> None:
+        if self.span:
+            tracing.end(self.span, "ok", end_ms=round(self.base + self.prev, 1), decision=self.row.get("decision"),
+                        rule=self.row.get("rule"), payment_id=self.row.get("payment_id"))
+
+
+def gbp(pence) -> str:
+    return f"£{(pence or 0) / 100:.2f}"
 
 
 def store_row(row: dict) -> dict:
@@ -175,13 +246,16 @@ def store_row(row: dict) -> dict:
     return row
 
 
-async def do_pay(row: dict, signed_offer: dict, p_match: float, rule: str) -> None:
+async def do_pay(row: dict, signed_offer: dict, p_match: float, rule: str, tr: "Tracer | None" = None) -> None:
+    t = time.perf_counter()
     try:
         res = await asyncio.to_thread(money.pay, signed_offer, p_match=p_match if p_match is not None else 0.0, rule=rule)
     except Exception as e:
         log.exception("money.pay failed")
         row["decision"] = "decline"
         row["rule"] = f"{rule} (payment failed: {e})"
+        if tr:
+            tr.add("Stripe", False, f"payment failed: {e}", error=str(e))
         return
     window = int((row["undo"] or {}).get("window_hours") or 0)
     paid_at = now_utc()
@@ -193,39 +267,61 @@ async def do_pay(row: dict, signed_offer: dict, p_match: float, rule: str) -> No
     row["window_ends_at"] = (paid_at + timedelta(hours=window)).isoformat() if window > 0 else None
     if row["payment_id"]:
         merchants.register_payment(row["payment_id"], row["merchant_id"], window, paid_at)
+    if tr:
+        what = "hold (manual capture, cancellable in the undo window)" if res.get("mode") == "hold" else "charge (captured now)"
+        tr.add("Stripe", True, f"{what}: {res.get('payment_id')} status {res.get('status')} in "
+                               f"{round((time.perf_counter() - t) * 1000)}ms",
+               mode=res.get("mode"), payment_id=res.get("payment_id"), stripe_status=res.get("status"))
 
 
-def check_offer(signed_intent: dict, signed_offer: dict, intent_hash: str) -> tuple[bool, str | None, dict | None]:
-    """Returns (signature_ok, check_failure, offer_payload)."""
+def check_offer(signed_intent: dict, signed_offer: dict, intent_hash: str, tr: "Tracer | None" = None) -> tuple[bool, str | None, dict | None]:
+    """Returns (signature_ok, check_failure, offer_payload). Adds one trace step per check when given a tracer."""
+    add = tr.add if tr else (lambda *a: None)
     try:
         intent = Intent(**signed_intent["payload"])
     except (KeyError, TypeError, ValidationError):
+        add("intent signature", False, "malformed signed intent")
         return False, "malformed intent", None
     try:
         offer = CartOffer(**signed_offer["payload"])
     except (KeyError, TypeError, ValidationError):
+        add("cart signature", False, "malformed signed cart")
         return False, "malformed offer", None
     intent_ok = signing.verify(signed_intent, USER_KEY)
-    offer_ok = offer.merchant_id in merchants.MERCHANTS and signing.verify(signed_offer, f"merchant-{offer.merchant_id}")
-    sig_ok = intent_ok and offer_ok
-    now = now_utc()
+    add("intent signature", intent_ok, f"Ed25519 signature by {USER_KEY} " + ("valid" if intent_ok else "INVALID"))
     if not intent_ok:
-        return sig_ok, "intent signature invalid", offer.model_dump()
+        return False, "intent signature invalid", offer.model_dump()
+    known = offer.merchant_id in merchants.MERCHANTS
+    offer_ok = known and signing.verify(signed_offer, f"merchant-{offer.merchant_id}")
+    add("cart signature", offer_ok, f"Ed25519 signature by merchant-{offer.merchant_id} " +
+        ("valid" if offer_ok else ("unknown merchant" if not known else "INVALID")))
     if not offer_ok:
-        return sig_ok, f"cart signature invalid for merchant-{offer.merchant_id}", offer.model_dump()
-    if offer.intent_hash != intent_hash:
-        return sig_ok, "cart intent_hash does not match the signed intent", offer.model_dump()
+        return False, f"cart signature invalid for merchant-{offer.merchant_id}", offer.model_dump()
+    hash_ok = offer.intent_hash == intent_hash
+    add("intent hash", hash_ok, f"cart bound to intent {offer.intent_hash[:12]}… " +
+        ("= signed intent" if hash_ok else f"≠ signed intent {intent_hash[:12]}…"))
+    if not hash_ok:
+        return True, "cart intent_hash does not match the signed intent", offer.model_dump()
+    now = now_utc()
     try:
-        if parse_ts(intent.expires_at) < now:
-            return sig_ok, "signed intent expired", offer.model_dump()
-        if parse_ts(offer.expires_at) < now:
-            return sig_ok, "cart offer expired", offer.model_dump()
+        ie, oe = parse_ts(intent.expires_at), parse_ts(offer.expires_at)
     except ValueError:
-        return sig_ok, "bad expiry timestamp", offer.model_dump()
+        add("expiry", False, "bad expiry timestamp")
+        return True, "bad expiry timestamp", offer.model_dump()
+    if ie < now:
+        add("expiry", False, f"signed intent expired at {intent.expires_at}")
+        return True, "signed intent expired", offer.model_dump()
+    if oe < now:
+        add("expiry", False, f"cart offer expired at {offer.expires_at}")
+        return True, "cart offer expired", offer.model_dump()
+    add("expiry", True, f"intent valid {round((ie - now).total_seconds() / 3600)}h more, cart "
+                        f"{round((oe - now).total_seconds() / 60)} min more")
     total = sum(i.price_pence for i in offer.items)
-    if total > intent.max_pence:
-        return sig_ok, f"cart total £{total / 100:.2f} > signed cap £{intent.max_pence / 100:.2f}", offer.model_dump()
-    return sig_ok, None, offer.model_dump()
+    cap_ok = total <= intent.max_pence
+    add("spending cap", cap_ok, f"cart total {gbp(total)} {'≤' if cap_ok else '>'} signed cap {gbp(intent.max_pence)}")
+    if not cap_ok:
+        return True, f"cart total £{total / 100:.2f} > signed cap £{intent.max_pence / 100:.2f}", offer.model_dump()
+    return True, None, offer.model_dump()
 
 
 @app.post("/api/intent")
@@ -262,7 +358,7 @@ def get_offers(token: str):
 
 
 @app.post("/api/pay")
-async def post_pay(body: PayIn):
+async def post_pay(body: PayIn, request: Request):
     signed_intent = decode(body.token)
     intent_hash = signing.sha256_hex(signed_intent)
     STATE["intents"].setdefault(intent_hash, signed_intent)
@@ -274,39 +370,78 @@ async def post_pay(body: PayIn):
     raw_payload = signed_offer.get("payload") if isinstance(signed_offer.get("payload"), dict) else {}
     merchant_id = raw_payload.get("merchant_id")
     row = new_row(merchant_id, intent_hash, raw_payload)
+    row["agent_id"], row["run_id"] = body.agent_id, body.run_id
+    tr = Tracer(row, request.headers.get("traceparent"))
+    items = raw_payload.get("items") or []
+    total = sum(int(i.get("price_pence") or 0) for i in items if isinstance(i, dict))
+    who = f" from agent {body.agent_id}" if body.agent_id else ""
+    tr.add("received", True, f"pay request{who}: {merchant_name(merchant_id) or merchant_id} cart, "
+                             f"{len(items)} item(s), {gbp(total)}")
 
     # 1. blocklist: stop before anything else, evaluator not called
     blocked = await get_blocklist()
     if merchant_id in blocked:
+        ev = blocked[merchant_id] or {}
+        p = ev.get("p_injection")
+        tr.add("blocklist", False, f"merchant-{merchant_id} flagged for prompt injection at {ev.get('at')}"
+                                   + (f" (P(injection) {p:.2f})" if isinstance(p, (int, float)) else "")
+                                   + "; refused before any other check, Jev not called")
         row.update(policy.decide(blocked=blocked[merchant_id] or True, check_failure=None, p_match=None, p_injection=None,
                                  offer=signed_offer, refused_undo=False))
+        tr.add("policy", False, f"{row['decision']}: {row['rule']}")
+        tr.add("Stripe", None, "skipped: not called")
+        tr.finish()
         return public_row(store_row(row))
+    tr.add("blocklist", True, f"merchant-{merchant_id} not on the blocklist ({len(blocked)} flagged)")
 
     # 2. signatures, hash, expiries, cap
-    sig_ok, failure, offer_payload = check_offer(signed_intent, signed_offer, intent_hash)
+    sig_ok, failure, offer_payload = check_offer(signed_intent, signed_offer, intent_hash, tr)
     row["signature_ok"] = sig_ok
     row["check_failure"] = failure
     if failure:
         row.update(policy.decide(blocked=False, check_failure=failure, p_match=None, p_injection=None,
                                  offer=signed_offer, refused_undo=False))
+        tr.add("policy", False, f"{row['decision']}: {row['rule']}")
+        tr.add("Stripe", None, "skipped: not called")
+        tr.finish()
         return public_row(store_row(row))
 
-    # 3. verified facts
-    facts = await load_facts()
-    row["facts_used"] = [{"relation": f.get("relation"), "object": f.get("object")} for f in facts]
+    # 3. signed memories: only the ones Cognee says matter for this request
+    t = time.perf_counter()
+    request_text = signed_intent["payload"]["request"]
+    rel = await relevant_facts(request_text)
+    facts = rel["facts"]
+    row["facts_used"] = [{"relation": f.get("relation"), "object": f.get("object"), "signed_at": f.get("signed_at")}
+                         for f in facts]
+    row["facts_total"], row["facts_method"] = rel["total"], rel["method"]
+    how = "Cognee" if rel["method"] == "cognee" else "Cognee unavailable, using all"
+    tr.add("signed memories", bool(facts),
+           f"{len(facts)} of {rel['total']} relevant ({how}), all signatures ✓: "
+           + ", ".join(f"{f.get('relation')}={f.get('object')}" for f in facts)
+           + f" ({round((time.perf_counter() - t) * 1000)}ms)",
+           facts_used=row["facts_used"], facts_total=rel["total"], method=rel["method"], answer=rel.get("answer"))
 
     # 4. evaluator
     request = signed_intent["payload"]["request"]
     items = offer_payload["items"]
+    t = time.perf_counter()
     try:
         sentences = evaluator.render_facts(facts)
         probs = await asyncio.to_thread(evaluator.evaluate, request, sentences, items)
     except Exception as e:
         log.exception("evaluator failed")
         row.update(decision="decline", rule=f"evaluator unavailable: {e}")
+        tr.add("Jev", False, f"evaluator unavailable after {round((time.perf_counter() - t) * 1000)}ms: {e}")
+        tr.add("policy", False, f"decline: {row['rule']}")
+        tr.add("Stripe", None, "skipped: not called")
+        tr.finish()
         return public_row(store_row(row))
     p_match, p_injection = probs.get("p_match"), probs.get("p_injection")
     row.update(p_match=p_match, p_injection=p_injection, eval_source=probs.get("source"))
+    tr.add("Jev", True, f"{round(p_match * 100)}% match · P(match) {p_match:.2f}, P(injection) {p_injection:.2f} via "
+                        f"{probs.get('source')} in {round((time.perf_counter() - t) * 1000)}ms",
+           p_match=p_match, p_injection=p_injection, source=probs.get("source"),
+           fact_sentences=sentences, cart=evaluator._cart(items))
 
     # 5. policy
     try:
@@ -317,17 +452,31 @@ async def post_pay(body: PayIn):
     decision = policy.decide(blocked=False, check_failure=None, p_match=p_match, p_injection=p_injection,
                              offer=signed_offer, refused_undo=refused)
     row.update(decision)
+    extra = ""
+    if row.get("undo_cost_pence") is not None:
+        extra = f" (undo cost {gbp(row['undo_cost_pence'])}, expected loss {gbp(row['expected_loss_pence'])})"
+    tr.add("policy", None if row["decision"] == "ask" else row["decision"] == "pay",
+           f"{row['decision']}: {row['rule']}{extra}", decision=row["decision"], rule=row["rule"],
+           undo_cost_pence=row.get("undo_cost_pence"), expected_loss_pence=row.get("expected_loss_pence"))
 
     if p_injection is not None and p_injection >= policy.INJECTION_THRESHOLD:
         try:
             await memory.flag_injection(merchant_id, p_injection, signed_offer)
-        except Exception:
+            tr.add("blocklist", False, f"merchant-{merchant_id} added to the blocklist; signed cart kept as evidence "
+                                       "in Cognee provider history")
+        except Exception as e:
             log.exception("flag_injection failed")
+            tr.add("blocklist", False, f"flagging merchant-{merchant_id} failed: {e}")
 
     # 6. money
     if row["decision"] == "pay":
-        await do_pay(row, signed_offer, p_match, row["rule"])
+        await do_pay(row, signed_offer, p_match, row["rule"], tr)
+    elif row["decision"] == "ask":
+        tr.add("Stripe", None, "skipped: waiting for you to approve")
+    else:
+        tr.add("Stripe", None, "skipped: not called")
     row["_signed_offer"] = signed_offer
+    tr.finish()
     store_row(row)
     return public_row(row)
 
@@ -340,6 +489,7 @@ def public_row(row: dict) -> dict:
     out = {k: v for k, v in row.items() if not k.startswith("_")}
     out["merchant_name"] = merchant_name(row.get("merchant_id")) or row.get("merchant_name")
     intent = STATE["intents"].get(row.get("intent_hash")) or {}
+    out["signed_intent"] = intent or None
     out["request"] = (intent.get("payload") or {}).get("request")
     out["max_pence"] = (intent.get("payload") or {}).get("max_pence")
     return out
@@ -365,12 +515,36 @@ async def post_decide(body: DecideIn):
         raise HTTPException(404, "unknown row")
     if row["decision"] != "ask":
         raise HTTPException(409, f"row decision is {row['decision']}, not ask")
+    tr = Tracer(row)
+    tr.t0 = time.perf_counter() - (now_utc() - parse_ts(row["at"])).total_seconds()
+    tr.prev = (row.get("trace") or [{}])[-1].get("t_ms", 0)
+    if row.get("trace_id") and tracing.known(row["trace_id"]):
+        tr.base = tracing.ms_at(row["trace_id"], tr.wall0) - tr.ms()
+        tr.span = tracing.start(row["trace_id"], "wallet /api/decide", "wallet", row.get("span_id"),
+                                {"row_id": row["id"], "approve": body.approve}, start_ms=round(tr.base + tr.ms(), 1))
+        tr.prev = tr.ms()
     if body.approve:
-        await do_pay(row, row.get("_signed_offer"), row["p_match"], "approved by user")
+        tr.add("user decision", True, "approved by user")
+        await do_pay(row, row.get("_signed_offer"), row["p_match"], "approved by user", tr)
     else:
         row.update(decision="decline", rule="rejected by user")
+        tr.add("user decision", False, "rejected by user")
+    tr.finish()
+    if row.get("run_id"):
+        tracing.save(row["run_id"])
     save_history()
     return public_row(row)
+
+
+@app.post("/api/reset")
+async def post_reset():
+    """Back to the prepared demo state: no rows, no runs, no traces; blocklist = prepared flags only; memories kept."""
+    agent.reset()
+    STATE.update(intent=None, intent_hash=None, explanation=None, rows=[], rows_by_id={}, intents={}, explanations={})
+    merchants.PAYMENTS.clear()
+    save_history()
+    kept = await memory.reset_provider_history()
+    return {"ok": True, "blocklist": kept}
 
 
 FINAL_STRIPE = {"canceled", "refunded"}

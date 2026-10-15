@@ -322,7 +322,7 @@ async def _load_provider_history() -> None:
                             signed_cart = json.loads(signed_cart)
                         except ValueError:
                             pass
-                    _blocklist[mid] = {"merchant_id": mid, "p_injection": p.get("p_injection"), "signed_cart": signed_cart, "at": p.get("at")}
+                    _blocklist[mid] = {"merchant_id": mid, "p_injection": p.get("p_injection"), "signed_cart": signed_cart, "at": p.get("at"), "prepared": bool(p.get("prepared"))}
                 elif kind == "undo_outcome":
                     recs = _undo_outcomes.setdefault(mid, [])
                     if not any(r["order_id"] == p.get("order_id") for r in recs):
@@ -332,10 +332,12 @@ async def _load_provider_history() -> None:
         _loaded = True
 
 
-async def flag_injection(merchant_id: str, p_injection: float, signed_cart: dict) -> None:
+async def flag_injection(merchant_id: str, p_injection: float, signed_cart: dict, prepared: bool = False) -> None:
+    """prepared=True marks a flag recorded while preparing the demo; reset_provider_history keeps only those."""
     await _load_provider_history()
     at = _now()
-    evidence = {"merchant_id": merchant_id, "p_injection": p_injection, "signed_cart": signed_cart, "at": at}
+    evidence = {"merchant_id": merchant_id, "p_injection": p_injection, "signed_cart": signed_cart, "at": at,
+                "prepared": prepared}
     _blocklist[merchant_id] = evidence
     cart_hash = signing.sha256_hex(signed_cart)
     props = {
@@ -345,8 +347,27 @@ async def flag_injection(merchant_id: str, p_injection: float, signed_cart: dict
         "signed_cart": json.dumps(signed_cart, sort_keys=True),
         "cart_hash": cart_hash,
         "at": at,
+        "prepared": prepared,
     }
     _mirror(merchant_id, "flagged_injection", cart_hash, props)
+
+
+async def reset_provider_history() -> list[str]:
+    """Drop runtime provider history (flags and undo outcomes not recorded while preparing the demo) from the
+    in-process view and from Cognee. Returns the merchant ids still flagged."""
+    await _load_provider_history()
+    await wait_for_mirrors()
+    for mid in [m for m, ev in _blocklist.items() if not (ev or {}).get("prepared")]:
+        del _blocklist[mid]
+    _undo_outcomes.clear()
+    async with _write_lock:
+        try:
+            await cognee.recall(
+                "MATCH (a:Node)-[r:EDGE]->(b:Node) WHERE NOT r.properties CONTAINS '\"prepared\": true' DELETE r",
+                query_type=SearchType.CYPHER, datasets=[PROVIDER_DATASET])
+        except Exception as exc:  # noqa: BLE001
+            print(f"[memory] reset provider history in Cognee failed: {exc!r}")
+    return sorted(_blocklist)
 
 
 async def blocklist() -> dict[str, dict]:
