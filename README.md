@@ -13,14 +13,14 @@ Prerequisites: [uv](https://docs.astral.sh/uv/) and a `.env` in the repo root wi
 - `LLM_API_KEY`: Anthropic key, used by the shopping agents, Cognee and the evaluator fallback
 
 ```sh
-uv run python -m scripts.prepare_demo      # reset, sign the user's facts, build some wallet history
+uv run python -m scripts.prepare_demo      # reset local state, sign the user's facts, pre-flag Shady Denim
 uv run uvicorn app.main:app --port 8000    # wallet, shops, chat and agents
 ```
 
 - `http://127.0.0.1:8000/chat`: say "Hey, go buy me some black jeans". Three Claude agents shop at three stores at once; the wallet checks each signed cart and pays, asks, declines or blocks.
 - `http://127.0.0.1:8000/`: the wallet. History, undo, and why each cart was stopped.
 
-`prepare_demo` runs the scripted agent (`scripts.agent_loop`) once, so one shop is already flagged for prompt injection. Use `--no-history` to only reset and seed. Run it with the server stopped: only one process writes to Cognee at a time.
+`prepare_demo` only resets local state (`.wallet`, `.cognee`); it never touches Stripe, so earlier test payments stay there. It seeds the signed memories and has the evaluator score Shady Denim's earlier injected cart, so that shop is already flagged for prompt injection. Run it with the server stopped: only one process writes to Cognee at a time.
 
 To let Claude Code shop through the wallet, add the MCP server and paste the signed-intent token from the UI:
 
