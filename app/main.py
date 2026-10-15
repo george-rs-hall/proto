@@ -36,6 +36,11 @@ app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 def chat_page():
     return FileResponse(ROOT / "static" / "chat.html")
 
+
+@app.get("/demo")
+def demo_page():
+    return FileResponse(ROOT / "static" / "demo.html")
+
 STATE = {
     "intent": None,          # signed intent dict
     "intent_hash": None,
