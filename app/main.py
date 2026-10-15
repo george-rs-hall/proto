@@ -10,9 +10,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
-from app import evaluator, memory, merchants, money, policy, signing
+from app import agent, evaluator, memory, merchants, money, policy, signing
 from app.models import CartOffer, Intent
 
 log = logging.getLogger("wallet")
@@ -25,6 +26,13 @@ STRIPE_REFRESH_SECONDS = 5
 
 app = FastAPI()
 app.include_router(merchants.router)
+app.include_router(agent.router)
+app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+
+
+@app.get("/chat")
+def chat_page():
+    return FileResponse(ROOT / "static" / "chat.html")
 
 STATE = {
     "intent": None,          # signed intent dict
