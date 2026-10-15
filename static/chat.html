@@ -739,7 +739,7 @@ function makeLane(agent) {
     <div class="lane-body"><div class="lane-empty">${icon("sparkle", 13, 2.2)}Starting agent…</div></div>`;
   return {
     el, body: $(".lane-body", el), statusEl: $(".status", el), shop: agent.shop, shopName: agent.shop_name || agent.shop,
-    seen: 0, stepsEl: null, checkingEl: null, lastText: null, decisions: [], status: "running", finalised: false,
+    seen: 0, queued: 0, queue: [], pumping: false, agentStatus: "running", msg: "", stepsEl: null, checkingEl: null, lastText: null, decisions: [], status: "running", finalised: false,
   };
 }
 
@@ -760,18 +760,42 @@ function setStatus(lane) {
   }
 }
 
+// Display pacing only: events are shown one at a time per lane so steps visibly appear.
+const STEP_MS = 350;
 function applyAgent(lane, agent, msg) {
   const evs = agent.events || [];
-  if (evs.length && lane.seen === 0) lane.body.innerHTML = "";
-  for (let i = lane.seen; i < evs.length; i++) {
-    const ev = evs[i];
+  for (let i = lane.queued || 0; i < evs.length; i++) lane.queue.push(evs[i]);
+  lane.queued = evs.length;
+  lane.agentStatus = agent.status || "running";
+  lane.msg = msg;
+  if (!lane.pumping) pumpLane(lane);
+}
+const laneIdle = l => !l.pumping && !l.queue.length;
+async function pumpLane(lane) {
+  lane.pumping = true;
+  while (lane.queue.length) {
+    const ev = lane.queue.shift();
+    if (lane.seen === 0) lane.body.innerHTML = "";
+    lane.seen++;
+    const before = document.body.scrollHeight;
+    const shown = renderEvent(lane, ev, lane.msg);
+    refreshLane(lane, lane.queue.length ? "running" : lane.agentStatus);
+    if (document.body.scrollHeight !== before) follow();
+    if (shown) await new Promise(r => setTimeout(r, STEP_MS));
+  }
+  refreshLane(lane, lane.agentStatus);
+  lane.pumping = false;
+}
+function renderEvent(lane, ev, msg) {
+  {
     if (ev.type === "tool_call") {
       const t = toolLabel(ev, lane);
       if (t && t.checking) {
         if (!lane.checkingEl) { lane.checkingEl = checkingCard(); lane.body.appendChild(lane.checkingEl); lane.stepsEl = null; }
       } else if (t) ensureSteps(lane).appendChild(stepRow(t.ic, esc(t.text), "tool"));
+      else return false;
     } else if (ev.type === "text") {
-      if (!String(ev.text || "").trim()) continue;
+      if (!String(ev.text || "").trim()) return false;
       const r = stepRow("msg", esc(ev.text), "thought");
       r.onclick = () => r.classList.toggle("expanded");
       ensureSteps(lane).appendChild(r);
@@ -799,10 +823,12 @@ function applyAgent(lane, agent, msg) {
       }
     } else if (ev.type === "error") {
       ensureSteps(lane).appendChild(stepRow("alert", esc(ev.text || "Something went wrong"), "err"));
-    }
+    } else return false;
   }
-  lane.seen = evs.length;
-  lane.status = agent.status || "running";
+  return true;
+}
+function refreshLane(lane, status) {
+  lane.status = status || "running";
 
   // the spinner sits on the latest step only while the agent is still working and not waiting on the wallet
   lane.el.querySelectorAll(".step-row.active").forEach(r => r.classList.remove("active"));
@@ -956,6 +982,7 @@ async function send(message) {
     }
     if (document.body.scrollHeight !== before) follow();
     if ((st.agents || []).length && st.agents.every(a => a.status !== "running")) {
+      while (![...lanes.values()].every(laneIdle)) await new Promise(r => setTimeout(r, 100));
       const s = summaryCard([...lanes.values()]);
       turn.appendChild(s);
       setTimeout(() => follow(false), 1200);

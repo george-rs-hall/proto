@@ -665,9 +665,10 @@ function initials(name) {
   const w = String(name).replace(/[^A-Za-z0-9& ]/g, " ").split(/\s+/).filter((x) => x && x !== "&");
   return ((w[0]?.[0] || "?") + (w[1]?.[0] || "")).toUpperCase();
 }
+const AV_INITIALS = { A: "DC", B: "ST", C: "OF", D: "SF", E: "SD", northside: "ND", coastline: "CO" };
 function avatar(id, name, cls = "") {
   const g = AV_FIXED[id] || AV_FIXED[(name || "").toLowerCase().includes("shady") ? "shady" : ""] || AV_GRADS[hash(id || name) % AV_GRADS.length];
-  return `<div class="av ${cls}" style="background:linear-gradient(135deg,${g[0]},${g[1]})">${esc(initials(name || id))}</div>`;
+  return `<div class="av ${cls}" style="background:linear-gradient(135deg,${g[0]},${g[1]})">${esc(AV_INITIALS[id] || initials(name || id))}</div>`;
 }
 
 /* ---------- money / time ---------- */
@@ -685,6 +686,16 @@ function fmtWhen(s) {
   if (d.toDateString() === y.toDateString()) return `Yesterday, ${t}`;
   return `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${t}`;
 }
+// same wording as chat: "today at 19:18" / "yesterday at 19:18" / "15 Oct"
+function fmtRel(s) {
+  const d = ts(s); if (!d) return "";
+  const now = new Date(); const t = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return `today at ${t}`;
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return `yesterday at ${t}`;
+  return "on " + d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+const capFirst = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 function fmtShort(s) {
   const d = ts(s); if (!d) return "";
   if (d.toDateString() === new Date().toDateString()) return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
@@ -785,8 +796,8 @@ function why(r, st, blockedMap) {
   switch (st) {
     case "blocked": {
       const ev = blockedMap[r?.merchant_id];
-      const d = ev?.at ? fmtDate(ev.at) : "";
-      return { short: `Blocked on past record: flagged for injection${d ? ` on ${d}` : ""}`, long: `Blocked on past record, not this cart. ${esc(mName(r))} was caught hiding instructions for your agent${d ? ` on ${d}` : ""}. Your wallet stopped this before even looking at the cart.`, sub: "This cart might have been fine. A shop that tried to trick your agent once doesn't get a second chance." };
+      const d = ev?.at ? fmtRel(ev.at) : "";
+      return { short: `Blocked on past record: flagged for injection${d ? ` ${d}` : ""}`, long: `Blocked on past record, not this cart. ${esc(mName(r))} was caught hiding instructions for your agent${d ? ` ${d}` : ""}. Your wallet stopped this before even looking at the cart.`, sub: "This cart might have been fine. A shop that tried to trick your agent once doesn't get a second chance." };
     }
     case "declined": {
       if ((r?.p_injection ?? 0) >= 0.8) {
@@ -946,13 +957,13 @@ function renderBlocked(list) {
     const note = items.map((i) => i?.description).find(Boolean);
     const name = b.merchant_name || b.merchant_id;
     const sig = b?.signed_cart?.signature || "";
-    return `<div class="blk"><div class="blk-h">${avatar(b.merchant_id, name, "md")}<div style="min-width:0"><div class="blk-name">${esc(name)}</div><div class="blk-sub">Flagged for prompt injection${b.at ? ` on ${esc(fmtDate(b.at))}` : ""}</div></div><span class="chip c-red" style="margin-left:auto">${I.ban}Blocked</span></div>
+    return `<div class="blk"><div class="blk-h">${avatar(b.merchant_id, name, "md")}<div style="min-width:0"><div class="blk-name">${esc(name)}</div><div class="blk-sub">Flagged for prompt injection${b.at ? ` ${esc(fmtRel(b.at))}` : ""}</div></div><span class="chip c-red" style="margin-left:auto">${I.ban}Blocked</span></div>
       <details><summary>${I.chev}Evidence</summary><div class="evidence">
         <div style="font-weight:600">Hidden in their signed listing:</div>
         ${note ? `<div class="quote">“${esc(note)}”</div>` : ""}
         <div class="kv"><span>Injection likelihood</span><b class="num">${b.p_injection != null ? Math.round(b.p_injection * 100) + "%" : "—"}</b></div>
         ${items[0] ? `<div class="kv"><span>Cart</span><b>${esc(cap(items[0].name))} · ${gbp(items[0].price_pence)}</b></div>` : ""}
-        <div class="kv"><span>Flagged</span><b>${esc(fmtWhen(b.at))}</b></div>
+        <div class="kv"><span>Flagged</span><b>${esc(capFirst(fmtRel(b.at)))}</b></div>
         ${sig ? `<div class="mono sig">sig ${esc(sig.slice(0, 44))}…</div>` : ""}
         <div class="meter-cap" style="margin-top:8px">The shop signed this cart itself, so it can't deny sending it.</div>
       </div></details></div>`;
@@ -1049,7 +1060,7 @@ function detailHTML(r, d) {
     </div></div>` : "";
   const blockedEv = st === "blocked" && blockedMap[r.merchant_id] ? (() => {
     const b = blockedMap[r.merchant_id]; const note = (b.signed_cart?.payload?.items || []).map((i) => i?.description).find(Boolean);
-    return `<div class="d-card"><h4>The record</h4><dl class="dl"><dt>Flagged</dt><dd>${esc(fmtWhen(b.at))}</dd><dt>Injection likelihood</dt><dd class="num">${b.p_injection != null ? Math.round(b.p_injection * 100) + "%" : "—"}</dd></dl>${note ? `<div class="quote">Hidden in their signed cart: “${esc(note)}”</div>` : ""}<div class="meter-cap">Remembered in your wallet's memory graph (Cognee). This cart was never sent for checking.</div></div>`;
+    return `<div class="d-card"><h4>The record</h4><dl class="dl"><dt>Flagged</dt><dd>${esc(capFirst(fmtRel(b.at)))}</dd><dt>Injection likelihood</dt><dd class="num">${b.p_injection != null ? Math.round(b.p_injection * 100) + "%" : "—"}</dd></dl>${note ? `<div class="quote">Hidden in their signed cart: “${esc(note)}”</div>` : ""}<div class="meter-cap">Remembered in your wallet's memory graph (Cognee). This cart was never sent for checking.</div></div>`;
   })() : "";
   const scores = r.p_match != null || r.p_injection != null ? `<div class="d-card"><h4>The wallet's check${r.eval_source ? `<span class="chip c-violet">${esc(r.eval_source === "jev" ? "Jev" : cap(r.eval_source))}</span>` : ""}</h4>
       ${meter("Matches what you asked", r.p_match, r.p_match >= 0.25 ? "var(--green)" : "var(--amber)", 0.25, "Below 25% the wallet won't pay")}
