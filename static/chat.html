@@ -1,0 +1,989 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shopping Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f7f7f5;
+  --bg-grad: radial-gradient(1200px 500px at 50% -120px, #eceefe 0%, rgba(236,238,254,0) 70%);
+  --panel: #ffffff;
+  --panel-2: #f3f4f6;
+  --panel-3: #fafafa;
+  --border: #e7e7e4;
+  --border-strong: #d8d8d4;
+  --text: #17181c;
+  --muted: #62656e;
+  --faint: #9a9da6;
+  --accent: #4f5bd5;
+  --accent-soft: #eef0fd;
+  --accent-text: #ffffff;
+  --user-bg: #1f2128;
+  --user-text: #f5f5f7;
+
+  --pay: #16a34a; --pay-bg: #ecfbf1; --pay-border: #bfe9cf; --pay-text: #0f6a33;
+  --ask: #d97706; --ask-bg: #fff7e8; --ask-border: #f6dcab; --ask-text: #8a4b03;
+  --decline: #dc2626; --decline-bg: #fef1f1; --decline-border: #f6c9c9; --decline-text: #a11b1b;
+  --block-bg: #16171b; --block-text: #f4f4f5; --block-muted: #a1a1aa; --block-border: #16171b; --block-accent: #f87171;
+
+  --shadow-sm: 0 1px 2px rgba(20,20,30,.04), 0 1px 1px rgba(20,20,30,.03);
+  --shadow: 0 1px 2px rgba(20,20,30,.04), 0 4px 16px rgba(20,20,30,.05);
+  --shadow-lg: 0 2px 4px rgba(20,20,30,.04), 0 12px 32px rgba(20,20,30,.08);
+  --ring: 0 0 0 4px rgba(79,91,213,.14);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111215;
+    --bg-grad: radial-gradient(1200px 500px at 50% -120px, #1d2038 0%, rgba(29,32,56,0) 70%);
+    --panel: #18191d;
+    --panel-2: #212329;
+    --panel-3: #1c1d22;
+    --border: #2a2c33;
+    --border-strong: #363943;
+    --text: #ececef;
+    --muted: #a0a3ad;
+    --faint: #6d707a;
+    --accent: #8b95ff;
+    --accent-soft: #23264a;
+    --accent-text: #0f1022;
+    --user-bg: #2a2c34;
+    --user-text: #f2f2f4;
+    --pay: #34d399; --pay-bg: #10241b; --pay-border: #1d4a35; --pay-text: #7ee7b5;
+    --ask: #fbbf24; --ask-bg: #2a2110; --ask-border: #4d3b14; --ask-text: #fcd27a;
+    --decline: #f87171; --decline-bg: #2b1515; --decline-border: #4e2424; --decline-text: #fca5a5;
+    --block-bg: #050506; --block-text: #f4f4f5; --block-muted: #9b9ba5; --block-border: #3a3a42; --block-accent: #f87171;
+    --shadow-sm: none; --shadow: 0 1px 0 rgba(255,255,255,.02); --shadow-lg: 0 10px 30px rgba(0,0,0,.35);
+    --ring: 0 0 0 4px rgba(139,149,255,.18);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111215;
+  --bg-grad: radial-gradient(1200px 500px at 50% -120px, #1d2038 0%, rgba(29,32,56,0) 70%);
+  --panel: #18191d;
+  --panel-2: #212329;
+  --panel-3: #1c1d22;
+  --border: #2a2c33;
+  --border-strong: #363943;
+  --text: #ececef;
+  --muted: #a0a3ad;
+  --faint: #6d707a;
+  --accent: #8b95ff;
+  --accent-soft: #23264a;
+  --accent-text: #0f1022;
+  --user-bg: #2a2c34;
+  --user-text: #f2f2f4;
+  --pay: #34d399; --pay-bg: #10241b; --pay-border: #1d4a35; --pay-text: #7ee7b5;
+  --ask: #fbbf24; --ask-bg: #2a2110; --ask-border: #4d3b14; --ask-text: #fcd27a;
+  --decline: #f87171; --decline-bg: #2b1515; --decline-border: #4e2424; --decline-text: #fca5a5;
+  --block-bg: #050506; --block-text: #f4f4f5; --block-muted: #9b9ba5; --block-border: #3a3a42; --block-accent: #f87171;
+  --shadow-sm: none; --shadow: 0 1px 0 rgba(255,255,255,.02); --shadow-lg: 0 10px 30px rgba(0,0,0,.35);
+  --ring: 0 0 0 4px rgba(139,149,255,.18);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg-grad), var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font: 14.5px/1.5 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+a { color: inherit; }
+svg { display: block; flex: none; }
+
+/* ---------- header ---------- */
+.top {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 24px;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; letter-spacing: -.01em; }
+.brand .mark {
+  width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
+  background: linear-gradient(140deg, #6b76f0, #4049b8); color: #fff; box-shadow: 0 2px 6px rgba(79,91,213,.35);
+}
+.brand .sub { color: var(--faint); font-weight: 500; font-size: 13px; }
+.top-right { display: flex; align-items: center; gap: 8px; }
+.wallet-link {
+  display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+  font-weight: 600; font-size: 13px; padding: 7px 12px 7px 10px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+  transition: border-color .15s, transform .15s;
+}
+.wallet-link:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.wallet-link .wl-dot { width: 20px; height: 20px; border-radius: 6px; background: var(--text); color: var(--bg); display: grid; place-items: center; }
+.icon-btn {
+  width: 34px; height: 34px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel);
+  color: var(--muted); display: grid; place-items: center; cursor: pointer; box-shadow: var(--shadow-sm);
+}
+.icon-btn:hover { color: var(--text); }
+
+/* ---------- layout ---------- */
+main { max-width: 1240px; margin: 0 auto; padding: 28px 24px 200px; }
+.turn { margin-bottom: 40px; }
+
+/* empty state */
+.hero { text-align: center; padding: 14vh 0 0; animation: fade .5s ease-out; }
+.hero .orb {
+  width: 52px; height: 52px; margin: 0 auto 18px; border-radius: 16px; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(140deg, #6b76f0, #4049b8); box-shadow: 0 8px 24px rgba(79,91,213,.35);
+}
+.hero h1 { margin: 0; font-size: 34px; letter-spacing: -.035em; font-weight: 700; }
+.hero p { margin: 10px auto 0; color: var(--muted); max-width: 520px; font-size: 15.5px; }
+.hero .how { display: flex; justify-content: center; gap: 10px; margin-top: 28px; flex-wrap: wrap; }
+.how .step {
+  display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 14px; border-radius: 14px;
+  background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow-sm); font-size: 13px; color: var(--muted); max-width: 250px;
+}
+.how .step b { color: var(--text); font-weight: 600; display: block; font-size: 13.5px; }
+.how .num { width: 26px; height: 26px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 12.5px; flex: none; }
+
+/* user message */
+.user-row { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; animation: rise .4s cubic-bezier(.2,.8,.2,1); }
+.bubble {
+  max-width: min(640px, 80%); background: var(--user-bg); color: var(--user-text);
+  padding: 11px 16px; border-radius: 20px 20px 6px 20px; font-size: 15.5px; line-height: 1.45; letter-spacing: -.005em;
+  box-shadow: var(--shadow);
+}
+.signed-chip {
+  display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted);
+  padding: 4px 10px 4px 6px; border-radius: 999px; background: var(--panel); border: 1px solid var(--border);
+}
+.signed-chip .tick { width: 16px; height: 16px; border-radius: 999px; background: var(--pay); color: #fff; display: grid; place-items: center; }
+.signed-chip b { color: var(--text); font-weight: 600; }
+.signed-chip .mono { font-size: 11px; color: var(--faint); }
+.signed-chip.pending .tick { background: var(--faint); }
+
+/* assistant intro */
+.asst { display: flex; gap: 12px; align-items: flex-start; margin: 22px 0 16px; animation: rise .45s .05s both cubic-bezier(.2,.8,.2,1); }
+.avatar {
+  width: 30px; height: 30px; border-radius: 9px; flex: none; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(140deg, #6b76f0, #4049b8);
+}
+.asst .say { padding-top: 4px; font-size: 15px; }
+.asst .say .muted { color: var(--muted); }
+
+/* lanes */
+.lanes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+@media (max-width: 860px) { .lanes { grid-template-columns: 1fr; } }
+.lane {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow);
+  overflow: clip; animation: rise .5s both cubic-bezier(.2,.8,.2,1); position: relative;
+}
+.lane:nth-child(2) { animation-delay: .08s; }
+.lane:nth-child(3) { animation-delay: .16s; }
+.lane-head { transition: box-shadow .4s; }
+.lane.v-pay .lane-head { box-shadow: inset 0 3px 0 var(--pay); }
+.lane.v-ask .lane-head { box-shadow: inset 0 3px 0 var(--ask); }
+.lane.v-decline .lane-head { box-shadow: inset 0 3px 0 var(--decline); }
+.lane.v-block .lane-head { box-shadow: inset 0 3px 0 var(--block-bg); }
+:root[data-theme="dark"] .lane.v-block .lane-head { box-shadow: inset 0 3px 0 var(--block-accent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lane.v-block .lane-head { box-shadow: inset 0 3px 0 var(--block-accent); } }
+
+.lane-head { display: flex; align-items: center; gap: 11px; padding: 14px 16px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 61px; z-index: 5; background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 18px 18px 0 0; }
+@media (max-width: 640px) { .lane-head { top: 55px; } }
+.lane { container-type: inline-size; container-name: lane; }
+@container lane (max-width: 330px) {
+  .lane-head { display: grid; grid-template-columns: 36px minmax(0, 1fr); grid-template-areas: "logo title" "logo status"; column-gap: 11px; row-gap: 3px; padding: 12px 14px 11px; }
+  .lane-head .shop-logo { grid-area: logo; align-self: center; }
+  .lane-head .lane-title { grid-area: title; }
+  .lane-head .lane-title .meta { display: none; }
+  .lane-head .status { grid-area: status; justify-self: start; padding: 2px 8px; font-size: 11px; }
+  .lane-body { padding: 10px 11px 12px; }
+  .lane .cart { flex-direction: column; gap: 10px; }
+  .lane .cart .pic { width: 100%; height: 132px; }
+  .lane .cart .pic img { width: 132px; height: 132px; object-fit: contain; }
+  .lane .verdict { padding: 12px 12px 11px; }
+  .lane .checking small { display: none; }
+}
+.shop-logo {
+  width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; flex: none;
+  font-weight: 800; font-size: 15px; color: #fff; letter-spacing: -.02em;
+}
+.lane-title { min-width: 0; flex: 1; }
+.lane-title .name { font-weight: 650; font-size: 15px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lane-title .meta { font-size: 12px; color: var(--faint); display: flex; align-items: center; gap: 5px; }
+.status {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 650; padding: 4px 9px; border-radius: 999px;
+  background: var(--panel-2); color: var(--muted); white-space: nowrap; transition: background .3s, color .3s;
+}
+.status .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+.status.pay { background: var(--pay-bg); color: var(--pay-text); }
+.status.ask { background: var(--ask-bg); color: var(--ask-text); }
+.status.decline { background: var(--decline-bg); color: var(--decline-text); }
+.status.block { background: var(--block-bg); color: var(--block-text); }
+.status.error { background: var(--decline-bg); color: var(--decline-text); }
+
+.lane-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.lane-empty { color: var(--faint); font-size: 13px; padding: 4px 2px; display: flex; gap: 8px; align-items: center; }
+
+/* step rows */
+.steps { display: flex; flex-direction: column; position: relative; }
+.step-row { display: flex; gap: 10px; align-items: flex-start; padding: 5px 2px; position: relative; animation: slidein .35s cubic-bezier(.2,.8,.2,1) both; }
+.step-row + .step-row::before {
+  content: ""; position: absolute; left: 12px; top: -6px; height: 10px; width: 1.5px; background: var(--border);
+}
+.step-ic {
+  width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; flex: none;
+  background: var(--panel-2); color: var(--muted); margin-top: 0;
+}
+.step-row.active .step-ic { background: var(--accent-soft); color: var(--accent); }
+.step-row.active .step-ic svg { display: none; }
+.step-row.active .step-ic::after {
+  content: ""; width: 10px; height: 10px; border-radius: 999px; border: 2px solid currentColor; border-right-color: transparent;
+  animation: spin .7s linear infinite;
+}
+.step-txt { font-size: 13.5px; color: var(--text); padding-top: 1px; min-width: 0; }
+.step-row.thought .step-txt { color: var(--muted); }
+.step-row.thought .step-txt span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: default; }
+.step-row.thought.expanded .step-txt span { -webkit-line-clamp: unset; }
+.step-row.err .step-ic { background: var(--decline-bg); color: var(--decline); }
+.step-row.err .step-txt { color: var(--decline-text); }
+.step-row.active .step-txt { background: linear-gradient(90deg, var(--text) 0%, var(--text) 40%, var(--faint) 50%, var(--text) 60%, var(--text) 100%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2s linear infinite; }
+
+/* cart card */
+.cart {
+  border: 1px solid var(--border); border-radius: 14px; background: var(--panel-3); padding: 10px; display: flex; gap: 12px;
+  animation: pop .45s cubic-bezier(.2,.9,.25,1.15) both;
+}
+.cart .pic {
+  width: 96px; height: 96px; border-radius: 10px; flex: none; overflow: hidden; background: #eef1f5; border: 1px solid var(--border);
+  display: grid; place-items: center;
+}
+.cart .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cart .info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; padding-top: 1px; }
+.cart .label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--faint); display: flex; align-items: center; gap: 5px; }
+.cart .pname { font-weight: 650; font-size: 14.5px; line-height: 1.25; letter-spacing: -.01em; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 11.5px; padding: 1px 7px; border-radius: 6px; background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.warn { background: var(--ask-bg); color: var(--ask-text); border-color: var(--ask-border); }
+.cart .bottom { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: auto; flex-wrap: wrap; }
+.price { font-weight: 750; font-size: 17px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.sig {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--pay-text);
+  background: var(--pay-bg); border: 1px solid var(--pay-border); padding: 1px 7px 1px 5px; border-radius: 999px; white-space: nowrap;
+}
+.sig.bad { color: var(--decline-text); background: var(--decline-bg); border-color: var(--decline-border); }
+.terms { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+.inject-note { margin-top: 2px; font-size: 11.5px; padding: 5px 8px; border-radius: 8px; background: var(--decline-bg); color: var(--decline-text); border: 1px dashed var(--decline-border); }
+
+/* checking */
+.checking {
+  border: 1px dashed var(--border-strong); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 11px;
+  color: var(--muted); font-size: 13.5px; animation: fade .3s both; position: relative; overflow: hidden;
+}
+.checking::after {
+  content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--accent) 9%, transparent) 50%, transparent 80%);
+  background-size: 200% 100%; animation: sweep 1.6s linear infinite;
+}
+.checking .wmark { width: 26px; height: 26px; border-radius: 8px; background: var(--text); color: var(--bg); display: grid; place-items: center; flex: none; }
+.checking b { color: var(--text); font-weight: 600; display: block; font-size: 13.5px; }
+.checking small { font-size: 12px; color: var(--faint); }
+
+/* verdict */
+.verdict {
+  border-radius: 16px; padding: 14px 15px 13px; border: 1px solid; position: relative; overflow: hidden;
+  animation: stamp .55s cubic-bezier(.2,.9,.25,1.2) both;
+}
+.verdict .vhead { display: flex; align-items: center; gap: 11px; }
+.verdict .vic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; color: #fff; }
+.verdict .who { font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; font-weight: 700; opacity: .75; display: flex; align-items: center; gap: 5px; }
+.verdict .vtitle { font-size: 20px; font-weight: 800; letter-spacing: -.025em; line-height: 1.15; }
+.verdict .vtitle .amt { font-variant-numeric: tabular-nums; }
+.verdict .reason { margin-top: 10px; font-size: 14.5px; font-weight: 600; line-height: 1.35; letter-spacing: -.005em; }
+.verdict .detail { margin-top: 3px; font-size: 12.5px; opacity: .85; }
+.verdict .vfoot { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.verdict .pill { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.verdict .cta {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 11px; text-decoration: none; font-weight: 650; font-size: 13px;
+  padding: 7px 12px; border-radius: 10px;
+}
+
+.verdict.pay { background: var(--pay-bg); border-color: var(--pay-border); color: var(--pay-text); }
+.verdict.pay .vic { background: var(--pay); }
+.verdict.pay .vtitle { color: var(--text); }
+.verdict.pay .pill { background: color-mix(in srgb, var(--pay) 14%, transparent); }
+
+.verdict.ask { background: var(--ask-bg); border-color: var(--ask-border); color: var(--ask-text); }
+.verdict.ask .vic { background: var(--ask); }
+.verdict.ask .vtitle { color: var(--text); }
+.verdict.ask .pill { background: color-mix(in srgb, var(--ask) 16%, transparent); }
+.verdict.ask .cta { background: var(--ask); color: #fff; }
+
+.verdict.decline { background: var(--decline-bg); border-color: var(--decline-border); color: var(--decline-text); }
+.verdict.decline .vic { background: var(--decline); }
+.verdict.decline .vtitle { color: var(--text); }
+.verdict.decline .pill { background: color-mix(in srgb, var(--decline) 13%, transparent); }
+
+.verdict.block { background: var(--block-bg); border-color: var(--block-border); color: var(--block-muted); }
+.verdict.block .vic { background: #2a2b31; color: var(--block-accent); box-shadow: inset 0 0 0 1px #3a3b42; }
+.verdict.block .vtitle { color: var(--block-text); }
+.verdict.block .reason { color: var(--block-text); }
+.verdict.block .pill { background: #26272d; color: #d4d4d8; }
+.verdict.block::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(135deg, rgba(255,255,255,.025) 0 10px, transparent 10px 20px);
+}
+
+/* agent's final sentence */
+.final {
+  display: flex; gap: 10px; align-items: flex-start; animation: rise .45s both cubic-bezier(.2,.8,.2,1);
+  padding: 2px 2px 0;
+}
+.final .avatar { width: 24px; height: 24px; border-radius: 7px; }
+.final p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text); }
+
+/* summary */
+.summary {
+  margin-top: 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 14px 16px; border-radius: 16px; background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow);
+  animation: rise .5s both cubic-bezier(.2,.8,.2,1);
+}
+.summary .avatar { width: 30px; height: 30px; }
+.summary .stext { flex: 1; min-width: 220px; font-size: 15px; }
+.summary .stext b { font-weight: 650; }
+.summary .tally { display: flex; gap: 6px; flex-wrap: wrap; }
+.summary .open {
+  display: inline-flex; align-items: center; gap: 7px; text-decoration: none; font-weight: 650; font-size: 13.5px;
+  padding: 9px 14px; border-radius: 11px; background: var(--text); color: var(--bg);
+  transition: transform .15s;
+}
+.summary .open:hover { transform: translateX(2px); }
+.tally .t { font-size: 12px; font-weight: 650; padding: 3px 9px; border-radius: 999px; }
+.t.pay { background: var(--pay-bg); color: var(--pay-text); }
+.t.ask { background: var(--ask-bg); color: var(--ask-text); }
+.t.decline { background: var(--decline-bg); color: var(--decline-text); }
+.t.block { background: var(--block-bg); color: var(--block-text); }
+
+/* composer */
+.composer-wrap {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; padding: 18px 24px 18px;
+  background: linear-gradient(to top, var(--bg) 62%, color-mix(in srgb, var(--bg) 0%, transparent));
+  pointer-events: none;
+}
+.composer {
+  pointer-events: auto; max-width: 760px; margin: 0 auto; background: var(--panel); border: 1px solid var(--border-strong);
+  border-radius: 22px; box-shadow: var(--shadow-lg); padding: 10px 10px 10px 18px; display: flex; align-items: flex-end; gap: 10px;
+  transition: box-shadow .2s, border-color .2s;
+}
+.composer:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); box-shadow: var(--shadow-lg), var(--ring); }
+.composer textarea {
+  flex: 1; border: 0; outline: 0; resize: none; background: transparent; color: var(--text); font: inherit; font-size: 16px;
+  line-height: 1.45; padding: 8px 0; max-height: 160px; min-height: 24px;
+}
+.composer textarea::placeholder { color: var(--faint); }
+.send {
+  width: 40px; height: 40px; border-radius: 13px; border: 0; cursor: pointer; display: grid; place-items: center;
+  background: var(--text); color: var(--bg); transition: transform .15s, opacity .2s, background .2s;
+}
+.send:hover { transform: scale(1.05); }
+.send:disabled { opacity: .3; cursor: default; transform: none; }
+.send.busy::after { content: ""; width: 14px; height: 14px; border-radius: 999px; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
+.send.busy svg { display: none; }
+.composer-note { pointer-events: auto; text-align: center; font-size: 12px; color: var(--faint); margin-top: 9px; display: flex; justify-content: center; align-items: center; gap: 6px; }
+.err-toast { color: var(--decline-text); }
+
+/* animations */
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slidein { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes stamp { 0% { opacity: 0; transform: scale(.94); } 60% { opacity: 1; transform: scale(1.015); } 100% { transform: none; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+@keyframes sweep { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
+
+@media (max-width: 640px) {
+  .top { padding: 10px 16px; }
+  .brand .sub { display: none; }
+  main { padding: 20px 16px 190px; }
+  .composer-wrap { padding: 14px 16px; }
+  .hero h1 { font-size: 27px; }
+  .bubble { max-width: 90%; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="mark" id="brandMark"></span>
+    <span>Assistant</span>
+    <span class="sub">· shops with agents, pays through your wallet</span>
+  </div>
+  <div class="top-right">
+    <button class="icon-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle theme"></button>
+    <a class="wallet-link" href="/"><span class="wl-dot" id="wlDot"></span>Open wallet <span aria-hidden="true">→</span></a>
+  </div>
+</header>
+
+<main id="thread">
+  <section class="hero" id="hero">
+    <div class="orb" id="heroOrb"></div>
+    <h1>What can I buy for you?</h1>
+    <p>Ask in plain words. Agents shop at three stores at once; your wallet checks every signed cart against what you asked for before any money moves.</p>
+    <div class="how">
+      <div class="step"><span class="num">1</span><div><b>You sign the request</b>Your wallet signs exactly what you asked for</div></div>
+      <div class="step"><span class="num">2</span><div><b>Agents fill carts</b>Each shop signs its cart and its undo terms</div></div>
+      <div class="step"><span class="num">3</span><div><b>Wallet decides</b>Pays, asks you, or says no, and says why</div></div>
+    </div>
+  </section>
+</main>
+
+<div class="composer-wrap">
+  <form class="composer" id="composer">
+    <textarea id="msg" rows="1" placeholder="Hey, go buy me some jeans" autocomplete="off"></textarea>
+    <button class="send" id="sendBtn" type="submit" aria-label="Send" disabled></button>
+  </form>
+  <div class="composer-note" id="note"><span id="noteLock"></span>Your wallet signs every request. Agents can only spend inside it.</div>
+</div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/* ---------- icons (lucide-style strokes) ---------- */
+const P = {
+  store: '<path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v1a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/><path d="M5 12v8h14v-8"/><path d="M10 20v-5h4v5"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  cart: '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3h3l2.6 12.2a1.5 1.5 0 0 0 1.5 1.2h8.2a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/>',
+  card: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19"/><path d="M6.5 15h4"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 9l6 6M15 9l-6 6"/>',
+  shieldok: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
+  hand: '<path d="M12 8v4"/><path d="M12 16h.01"/><circle cx="12" cy="12" r="9"/>',
+  msg: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/>',
+  sparkle: '<path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z"/><path d="M19 3v4M17 5h4"/>',
+  arrowup: '<path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/>',
+  lock: '<rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
+  wallet: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="3.5" y="7.5" width="17" height="12" rx="2.5"/><circle cx="16" cy="13.5" r="1.3"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  alert: '<path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.5h.01"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/>',
+};
+const icon = (n, s = 14, w = 2) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${P[n] || ""}</svg>`;
+
+$("#brandMark").innerHTML = icon("sparkle", 16, 2.2);
+$("#heroOrb").innerHTML = icon("sparkle", 26, 2);
+$("#sendBtn").innerHTML = icon("arrowup", 18, 2.4);
+$("#wlDot").innerHTML = icon("wallet", 12, 2.4);
+$("#noteLock").innerHTML = icon("lock", 12, 2.2);
+
+/* ---------- theme ---------- */
+const root = document.documentElement;
+function effectiveDark() {
+  const t = root.dataset.theme;
+  return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function paintThemeBtn() { $("#themeBtn").innerHTML = icon(effectiveDark() ? "sun" : "moon", 15, 2); }
+try { const t = localStorage.getItem("chat-theme"); if (t) root.dataset.theme = t; } catch (e) {}
+paintThemeBtn();
+$("#themeBtn").onclick = () => {
+  root.dataset.theme = effectiveDark() ? "light" : "dark";
+  try { localStorage.setItem("chat-theme", root.dataset.theme); } catch (e) {}
+  paintThemeBtn();
+};
+
+/* ---------- formatting ---------- */
+const gbp = p => {
+  const v = (Number(p) || 0) / 100;
+  return "£" + (Number.isInteger(v) ? v.toFixed(0) : v.toFixed(2));
+};
+const titleCase = s => String(s || "").replace(/\b([a-z])/g, (m, c) => c.toUpperCase());
+function windowText(h) {
+  h = Number(h) || 0;
+  if (h <= 0) return null;
+  if (h % 24 === 0) { const d = h / 24; return d === 1 ? "1 day" : `${d} days`; }
+  return `${h} hours`;
+}
+function fmtDate(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  const now = new Date();
+  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return `today at ${time}`;
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return `yesterday at ${time}`;
+  return "on " + d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+function maxPence(msg) {
+  const m = String(msg).match(/£\s?(\d+(?:\.\d{1,2})?)/);
+  return m ? Math.round(parseFloat(m[1]) * 100) : 8000;
+}
+
+const SHOP_STYLE = {
+  northside: { bg: "linear-gradient(140deg,#3b5bdb,#1e3a8a)", letter: "N", tag: "Denim specialist" },
+  coastline: { bg: "linear-gradient(140deg,#14b8a6,#0e7490)", letter: "C", tag: "Outlet" },
+  E: { bg: "linear-gradient(140deg,#6b7280,#27272a)", letter: "S", tag: "Denim" },
+};
+function shopStyle(shop, name) {
+  if (SHOP_STYLE[shop]) return SHOP_STYLE[shop];
+  const palette = ["#7c3aed,#4c1d95", "#e11d48,#9f1239", "#ea580c,#9a3412", "#0891b2,#164e63"];
+  let h = 0; for (const c of String(shop)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return { bg: `linear-gradient(140deg,${palette[h % palette.length]})`, letter: (name || shop || "?").trim()[0].toUpperCase(), tag: "Shop" };
+}
+
+/* ---------- plain-words reasons ---------- */
+const KINDS = ["jeans", "shorts", "chinos", "trousers", "joggers", "t-shirt", "shirt", "jacket", "hoodie", "jumper", "dress", "skirt", "shoes", "trainers", "boots", "socks"];
+const COLOURS = ["black", "charcoal", "grey", "gray", "blue", "navy", "indigo", "white", "brown", "green", "red", "beige"];
+const norm = k => String(k || "").toLowerCase().trim();
+function askedKind(msg) { const m = norm(msg); return KINDS.find(k => new RegExp(`\\b${k}\\b`).test(m)); }
+function askedColour(msg) { const m = norm(msg); return COLOURS.find(k => new RegExp(`\\b${k}\\b`).test(m)); }
+function fact(row, rel) { const f = (row.facts_used || []).find(f => f.relation === rel); return f ? String(f.object) : null; }
+
+function concerns(row, msg) {
+  const out = [];
+  const items = row.items || [];
+  const kind = askedKind(msg), col = askedColour(msg);
+  const waist = fact(row, "waist_size"), avoid = fact(row, "avoids_material");
+  for (const it of items) {
+    const ik = norm(it.kind);
+    if (kind && ik && ik !== kind) out.push(`Cart is ${ik}; you asked for ${kind}`);
+    if (col && it.colour && norm(it.colour) !== col) out.push(`Cart is ${norm(it.colour)}; you asked for ${col}`);
+    if (waist && it.waist && String(it.waist) !== waist) out.push(`Waist ${it.waist}; yours is ${waist}`);
+    if (avoid && norm(it.material).includes(norm(avoid))) out.push(`Contains ${norm(avoid)}; you avoid it`);
+  }
+  return [...new Set(out)];
+}
+
+const BLOCKLIST = {};
+async function loadBlocklist() {
+  try {
+    const r = await fetch("/api/audit");
+    if (!r.ok) return;
+    const j = await r.json();
+    for (const b of j.blocklist || []) BLOCKLIST[b.merchant_id] = b;
+  } catch (e) {}
+}
+
+function verdictModel(row, msg) {
+  const total = (row.items || []).reduce((a, i) => a + (Number(i.price_pence) || 0), 0);
+  const win = windowText(row.undo?.window_hours);
+  const rule = String(row.rule || "");
+  const pm = row.p_match != null ? Math.round(row.p_match * 100) : null;
+  const foot = [];
+  if (row.signature_ok === true) foot.push(`${icon("shieldok", 12, 2.4)}Signatures verified`);
+  if (row.signature_ok === false) foot.push(`${icon("x", 12, 2.6)}Signature failed`);
+  if (pm != null) foot.push(`Match ${pm}%`);
+  const d = row.decision;
+
+  if (d === "pay") {
+    const hold = row.payment_mode === "hold";
+    return {
+      cls: "pay", ic: "check", label: hold ? "Card hold" : "Paid",
+      title: `${hold ? "Held" : "Paid"} <span class="amt">${gbp(total)}</span>`,
+      reason: win ? `Free cancel for ${win}` : "Final sale. Can't be undone",
+      detail: hold ? "Held on your card, not charged yet" : "Charged to your card",
+      foot,
+    };
+  }
+  if (d === "ask") {
+    const cs = concerns(row, msg);
+    const loss = row.expected_loss_pence != null ? gbp(row.expected_loss_pence) : null;
+    return {
+      cls: "ask", ic: "hand", label: "Needs your OK",
+      title: `Needs your OK`,
+      reason: cs[0] || (win ? `Not sure it's right` : `Not sure it's right, and it's final sale`),
+      detail: `${win ? `Free cancel for ${win}` : "Final sale, no undo"}${loss ? ` · ${loss} likely loss is over your £10 auto-pay limit` : ""}`,
+      foot, cta: true,
+    };
+  }
+  if (d === "block") {
+    const b = BLOCKLIST[row.merchant_id];
+    const m = rule.match(/(\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-]\d{2}:\d{2})?)/);
+    const when = b?.at ? fmtDate(b.at) : (m ? fmtDate(m[1]) : null);
+    return {
+      cls: "block", ic: "shield", label: "Blocked",
+      title: "Blocked",
+      reason: `Flagged for prompt injection${when ? " " + when : " before"}`,
+      detail: "Blocked on this shop's past record, not this cart. Nothing charged.",
+      foot: b?.p_injection != null ? [`Injection risk ${Math.round(b.p_injection * 100)}%`] : [],
+    };
+  }
+  // decline
+  let reason, detail = "Nothing charged.";
+  if (/injection/i.test(rule) || (row.p_injection != null && row.p_injection >= 0.8)) {
+    reason = "Cart hides instructions aimed at your agent";
+    detail = "Shop is now blocked. Nothing charged.";
+  } else if (row.check_failure || /^check failed/.test(rule)) {
+    const f = String(row.check_failure || rule.replace(/^check failed:\s*/, ""));
+    if (/signature/.test(f)) reason = "Signature didn't verify";
+    else if (/intent_hash/.test(f)) reason = "Cart wasn't made for your request";
+    else if (/expired/.test(f)) reason = f.includes("intent") ? "Your request has expired" : "The shop's offer has expired";
+    else if (/cap/.test(f)) { const mm = f.match(/£[\d.]+.*?£[\d.]+/); reason = "Over your spending limit"; if (mm) detail = `${f.replace(/^cart total /, "Cart ").replace(">", "is over your")}. Nothing charged.`; }
+    else reason = titleCase(f);
+  } else if (/rejected by user/.test(rule)) {
+    reason = "You said no";
+  } else if (/evaluator unavailable/.test(rule)) {
+    reason = "Couldn't check the cart, so it didn't pay";
+  } else {
+    const cs = concerns(row, msg);
+    reason = cs[0] || "Not what you asked for";
+    if (cs[1]) detail = `${cs[1]}. Nothing charged.`;
+  }
+  return { cls: "decline", ic: "x", label: "Declined", title: "Declined", reason, detail, foot };
+}
+
+/* ---------- rendering ---------- */
+const thread = $("#thread");
+let runActive = false;
+
+function toolLabel(ev, lane) {
+  const d = ev.data || {};
+  const name = norm(d.name || d.tool || "");
+  const hay = name + " " + norm(ev.text);
+  if (/catalog|browse|search|list_products|products/.test(hay)) return { ic: "store", text: `Browsing ${lane.shopName}` };
+  if (/add_to_cart|\bcart\b|basket/.test(name)) return null; // the cart event says it better
+  if (/pay|checkout|wallet|purchase|buy/.test(hay)) return { checking: true };
+  return { ic: "sparkle", text: ev.text || titleCase(name.replace(/_/g, " ")) || "Working" };
+}
+
+function stepRow(ic, html, cls = "") {
+  const el = document.createElement("div");
+  el.className = "step-row " + cls;
+  el.innerHTML = `<span class="step-ic">${icon(ic, 13, 2.2)}</span><div class="step-txt"><span>${html}</span></div>`;
+  return el;
+}
+
+function ensureSteps(lane) {
+  if (!lane.stepsEl || lane.body.lastElementChild !== lane.stepsEl) {
+    lane.stepsEl = document.createElement("div");
+    lane.stepsEl.className = "steps";
+    lane.body.appendChild(lane.stepsEl);
+  }
+  return lane.stepsEl;
+}
+
+function cartCard(offer, lane) {
+  const p = offer?.payload || offer || {};
+  const items = p.items || [];
+  const it = items[0] || {};
+  const total = items.reduce((a, i) => a + (Number(i.price_pence) || 0), 0);
+  const win = windowText(p.undo?.window_hours);
+  const chips = [];
+  if (it.colour) chips.push(titleCase(it.colour));
+  if (it.waist) chips.push(`W${it.waist}`);
+  if (it.material) chips.push(titleCase(it.material));
+  const el = document.createElement("div");
+  el.className = "cart";
+  el.innerHTML = `
+    <div class="pic">${it.image ? `<img src="${esc(it.image)}" alt="${esc(it.name)}">` : icon("tag", 28, 1.6)}</div>
+    <div class="info">
+      <div class="label">${icon("cart", 11, 2.4)}Signed cart${items.length > 1 ? ` · ${items.length} items` : ""}</div>
+      <div class="pname">${esc(titleCase(it.name || "Item"))}</div>
+      <div class="chips">${chips.map(c => `<span class="chip">${esc(c)}</span>`).join("")}</div>
+      ${it.description ? `<div class="inject-note">“${esc(it.description)}”</div>` : ""}
+      <div class="bottom">
+        <span class="price">${gbp(total)}</span>
+        ${offer?.signature ? `<span class="sig">${icon("check", 10, 3)}Signed by shop</span>` : ""}
+      </div>
+      <div class="terms">${icon(win ? "undo" : "alert", 11, 2.2)}${win ? `Free cancel for ${win}` : "Final sale, no returns"}</div>
+    </div>`;
+  return el;
+}
+
+function checkingCard() {
+  const el = document.createElement("div");
+  el.className = "checking";
+  el.innerHTML = `<span class="wmark">${icon("wallet", 14, 2.2)}</span><div><b>Your wallet is checking the cart</b><small>Signatures, your request, your signed preferences, undo terms</small></div>`;
+  return el;
+}
+
+function verdictCard(row, msg) {
+  const v = verdictModel(row, msg);
+  const el = document.createElement("div");
+  el.className = "verdict " + v.cls;
+  el.innerHTML = `
+    <div class="vhead">
+      <span class="vic">${icon(v.ic, 20, 2.6)}</span>
+      <div>
+        <div class="who">${icon("wallet", 11, 2.4)}Your wallet</div>
+        <div class="vtitle">${v.title}</div>
+      </div>
+    </div>
+    <div class="reason">${esc(v.reason)}</div>
+    ${v.detail ? `<div class="detail">${esc(v.detail)}</div>` : ""}
+    ${v.foot.length ? `<div class="vfoot">${v.foot.map(f => `<span class="pill">${f}</span>`).join("")}</div>` : ""}
+    ${v.cta ? `<a class="cta" href="/">Review in wallet ${icon("arrowup", 13, 2.4).replace("<svg", '<svg style="transform:rotate(90deg)"')}</a>` : ""}`;
+  return { el, v };
+}
+
+function makeLane(agent) {
+  const st = shopStyle(agent.shop, agent.shop_name);
+  const el = document.createElement("article");
+  el.className = "lane";
+  el.innerHTML = `
+    <div class="lane-head">
+      <span class="shop-logo" style="background:${st.bg}">${esc(st.letter)}</span>
+      <div class="lane-title"><div class="name">${esc(agent.shop_name || agent.shop)}</div><div class="meta">${icon("sparkle", 11, 2.2)}Claude agent</div></div>
+      <span class="status"><span class="dot"></span>Shopping</span>
+    </div>
+    <div class="lane-body"><div class="lane-empty">${icon("sparkle", 13, 2.2)}Starting agent…</div></div>`;
+  return {
+    el, body: $(".lane-body", el), statusEl: $(".status", el), shop: agent.shop, shopName: agent.shop_name || agent.shop,
+    seen: 0, stepsEl: null, checkingEl: null, lastText: null, decisions: [], status: "running", finalised: false,
+  };
+}
+
+function setStatus(lane) {
+  const last = lane.decisions[lane.decisions.length - 1];
+  const s = lane.statusEl;
+  lane.el.classList.remove("v-pay", "v-ask", "v-decline", "v-block");
+  if (last) {
+    lane.el.classList.add("v-" + last.cls);
+    s.className = "status " + last.cls;
+    s.innerHTML = `${icon(last.ic, 11, 3)}${esc(last.label)}`;
+  } else if (lane.status === "error") {
+    s.className = "status error"; s.innerHTML = `${icon("alert", 11, 2.6)}Error`;
+  } else if (lane.status === "done") {
+    s.className = "status"; s.innerHTML = `${icon("check", 11, 3)}Done`;
+  } else {
+    s.className = "status"; s.innerHTML = `<span class="dot"></span>${lane.checkingEl ? "Checking" : "Shopping"}`;
+  }
+}
+
+function applyAgent(lane, agent, msg) {
+  const evs = agent.events || [];
+  if (evs.length && lane.seen === 0) lane.body.innerHTML = "";
+  for (let i = lane.seen; i < evs.length; i++) {
+    const ev = evs[i];
+    if (ev.type === "tool_call") {
+      const t = toolLabel(ev, lane);
+      if (t && t.checking) {
+        if (!lane.checkingEl) { lane.checkingEl = checkingCard(); lane.body.appendChild(lane.checkingEl); lane.stepsEl = null; }
+      } else if (t) ensureSteps(lane).appendChild(stepRow(t.ic, esc(t.text), "tool"));
+    } else if (ev.type === "text") {
+      if (!String(ev.text || "").trim()) continue;
+      const r = stepRow("msg", esc(ev.text), "thought");
+      r.onclick = () => r.classList.toggle("expanded");
+      ensureSteps(lane).appendChild(r);
+      lane.lastText = r;
+    } else if (ev.type === "cart") {
+      const p = ev.data?.payload || ev.data || {};
+      const nm = titleCase(p.items?.[0]?.name || "item");
+      const said = String(ev.text || "").trim();
+      ensureSteps(lane).appendChild(stepRow("cart", said && said.length < 140 ? esc(said) : `Added <b>${esc(nm)}</b> to cart`, "tool"));
+      lane.stepsEl = null;
+      if (lane.checkingEl) { lane.checkingEl.remove(); lane.checkingEl = null; }
+      lane.body.appendChild(cartCard(ev.data, lane));
+    } else if (ev.type === "decision") {
+      if (lane.checkingEl) { lane.checkingEl.remove(); lane.checkingEl = null; }
+      const { el, v } = verdictCard(ev.data || {}, msg);
+      lane.body.appendChild(el);
+      lane.decisions.push(v);
+      lane.stepsEl = null;
+      if ((ev.data || {}).decision === "block" && !BLOCKLIST[(ev.data || {}).merchant_id]) {
+        loadBlocklist().then(() => {
+          const nv = verdictCard(ev.data || {}, msg);
+          nv.el.style.animation = "none";
+          el.replaceWith(nv.el);
+        });
+      }
+    } else if (ev.type === "error") {
+      ensureSteps(lane).appendChild(stepRow("alert", esc(ev.text || "Something went wrong"), "err"));
+    }
+  }
+  lane.seen = evs.length;
+  lane.status = agent.status || "running";
+
+  // the spinner sits on the latest step only while the agent is still working and not waiting on the wallet
+  lane.el.querySelectorAll(".step-row.active").forEach(r => r.classList.remove("active"));
+  if (lane.status === "running" && !lane.checkingEl) {
+    const rows = lane.el.querySelectorAll(".step-row.tool");
+    const lastStepEl = lane.body.lastElementChild;
+    if (rows.length && lastStepEl && lastStepEl.classList.contains("steps")) {
+      const last = lastStepEl.lastElementChild;
+      if (last && last.classList.contains("tool")) last.classList.add("active");
+    }
+  }
+
+  // final sentence: last text after the agent finishes
+  if (lane.status !== "running" && !lane.finalised) {
+    lane.finalised = true;
+    if (lane.checkingEl) { lane.checkingEl.remove(); lane.checkingEl = null; }
+    const t = lane.lastText;
+    if (t && t === t.parentElement?.lastElementChild && t.parentElement === lane.body.lastElementChild) {
+      const txt = t.querySelector(".step-txt span").innerHTML;
+      const steps = t.parentElement;
+      t.remove();
+      if (!steps.children.length) steps.remove();
+      const f = document.createElement("div");
+      f.className = "final";
+      f.innerHTML = `<span class="avatar">${icon("sparkle", 12, 2.4)}</span><p>${txt}</p>`;
+      lane.body.appendChild(f);
+    }
+    if (!lane.body.children.length) lane.body.innerHTML = `<div class="lane-empty">${icon("check", 13, 2.2)}Agent finished without a cart</div>`;
+  }
+  setStatus(lane);
+}
+
+function summaryCard(lanes) {
+  const all = lanes.flatMap(l => l.decisionRows);
+  const paid = all.filter(r => r.decision === "pay");
+  const ask = all.filter(r => r.decision === "ask");
+  const stopped = all.filter(r => r.decision === "decline" || r.decision === "block");
+  const spent = paid.reduce((a, r) => a + (r.items || []).reduce((b, i) => b + (Number(i.price_pence) || 0), 0), 0);
+  const names = paid.map(r => titleCase(r.items?.[0]?.name || "item"));
+  let text;
+  if (paid.length) text = `Bought <b>${esc(names.join(", "))}</b> for <b>${gbp(spent)}</b>.`;
+  else if (ask.length) text = `Nothing bought yet. <b>${ask.length === 1 ? "One cart needs" : ask.length + " carts need"} your OK</b>.`;
+  else text = `Nothing bought. Your wallet didn't find a cart it was sure about.`;
+  if (paid.length && ask.length) text += ` ${ask.length === 1 ? "One more cart needs" : ask.length + " carts need"} your OK.`;
+  if (stopped.length) text += ` <span style="color:var(--muted)">Your wallet stopped ${stopped.length === 1 ? "one cart" : stopped.length + " carts"}.</span>`;
+  const tally = [];
+  if (paid.length) tally.push(`<span class="t pay">${paid.length} paid</span>`);
+  if (ask.length) tally.push(`<span class="t ask">${ask.length} waiting</span>`);
+  const dec = all.filter(r => r.decision === "decline").length, blk = all.filter(r => r.decision === "block").length;
+  if (dec) tally.push(`<span class="t decline">${dec} declined</span>`);
+  if (blk) tally.push(`<span class="t block">${blk} blocked</span>`);
+  const el = document.createElement("div");
+  el.className = "summary";
+  el.innerHTML = `<span class="avatar">${icon("sparkle", 15, 2.2)}</span>
+    <div class="stext">${text}</div>
+    <div class="tally">${tally.join("")}</div>
+    <a class="open" href="/">${icon("wallet", 14, 2.2)}Open wallet <span aria-hidden="true">→</span></a>`;
+  return el;
+}
+
+/* ---------- scrolling ---------- */
+let stick = true;
+addEventListener("wheel", e => {
+  if (e.deltaY < 0) stick = false;
+  else if (innerHeight + scrollY >= document.body.scrollHeight - 260) stick = true;
+}, { passive: true });
+function follow() {
+  if (!stick) return;
+  const turn = thread.lastElementChild;
+  if (!turn) return;
+  const comp = document.querySelector(".composer-wrap").getBoundingClientRect();
+  const bottom = turn.getBoundingClientRect().bottom + scrollY;
+  const target = Math.max(0, bottom - (comp.top + 4));
+  if (target > scrollY + 2) scrollTo({ top: target, behavior: "smooth" });
+}
+
+/* ---------- run ---------- */
+async function send(message) {
+  if (runActive) return;
+  runActive = true;
+  setBusy(true);
+  const hero = $("#hero");
+  if (hero) hero.remove();
+
+  const turn = document.createElement("section");
+  turn.className = "turn";
+  turn.innerHTML = `
+    <div class="user-row">
+      <div class="bubble">${esc(message)}</div>
+      <span class="signed-chip pending"><span class="tick">${icon("lock", 9, 3)}</span>Signing your request…</span>
+    </div>`;
+  thread.appendChild(turn);
+  stick = true; follow();
+
+  let start;
+  try {
+    const r = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) });
+    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    start = await r.json();
+  } catch (e) {
+    $(".signed-chip", turn).outerHTML = `<span class="signed-chip err-toast">${icon("alert", 12, 2.2)}Couldn't start: ${esc(e.message).slice(0, 140)}</span>`;
+    runActive = false; setBusy(false);
+    return;
+  }
+
+  $(".signed-chip", turn).outerHTML = `<span class="signed-chip"><span class="tick">${icon("check", 10, 3.2)}</span>Signed by you · up to <b>${gbp(maxPence(message))}</b> <span class="mono">${esc(String(start.intent_hash || "").slice(0, 10))}</span></span>`;
+
+  const agents = start.agents || [];
+  const intro = document.createElement("div");
+  intro.className = "asst";
+  intro.innerHTML = `<span class="avatar">${icon("sparkle", 15, 2.2)}</span>
+    <div class="say">On it. I've sent ${agents.length === 3 ? "three" : agents.length} agents shopping at once. <span class="muted">Your wallet checks each signed cart before any money moves.</span></div>`;
+  turn.appendChild(intro);
+
+  const grid = document.createElement("div");
+  grid.className = "lanes";
+  turn.appendChild(grid);
+  const lanes = new Map();
+  for (const a of agents) {
+    const l = makeLane(a);
+    l.decisionRows = [];
+    lanes.set(a.agent_id, l);
+    grid.appendChild(l.el);
+  }
+  follow();
+  if (agents.some(a => a.shop === "E")) loadBlocklist();
+
+  let fails = 0;
+  while (true) {
+    await new Promise(r => setTimeout(r, 700));
+    let st;
+    try {
+      const r = await fetch(`/api/chat/${encodeURIComponent(start.run_id)}`);
+      if (!r.ok) throw new Error(r.status);
+      st = await r.json();
+      fails = 0;
+    } catch (e) {
+      if (++fails > 20) break;
+      continue;
+    }
+    const before = document.body.scrollHeight;
+    for (const a of st.agents || []) {
+      let l = lanes.get(a.agent_id);
+      if (!l) { l = makeLane(a); l.decisionRows = []; lanes.set(a.agent_id, l); grid.appendChild(l.el); }
+      l.decisionRows = (a.events || []).filter(e => e.type === "decision").map(e => e.data || {});
+      applyAgent(l, a, message);
+    }
+    if (document.body.scrollHeight !== before) follow();
+    if ((st.agents || []).length && st.agents.every(a => a.status !== "running")) {
+      const s = summaryCard([...lanes.values()]);
+      turn.appendChild(s);
+      setTimeout(follow, 50);
+      break;
+    }
+  }
+  runActive = false;
+  setBusy(false);
+}
+
+/* ---------- composer ---------- */
+const ta = $("#msg"), btn = $("#sendBtn");
+function autosize() { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 160) + "px"; }
+function setBusy(b) {
+  btn.classList.toggle("busy", b);
+  btn.disabled = b || !ta.value.trim();
+  ta.placeholder = b ? "Agents are shopping…" : "Hey, go buy me some jeans";
+}
+ta.addEventListener("input", () => { autosize(); btn.disabled = runActive || !ta.value.trim(); });
+ta.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("#composer").requestSubmit(); }
+});
+$("#composer").addEventListener("submit", e => {
+  e.preventDefault();
+  const m = ta.value.trim();
+  if (!m || runActive) return;
+  ta.value = ""; autosize();
+  send(m);
+});
+ta.focus();
+const q = new URLSearchParams(location.search).get("q");
+if (q) send(q);
+</script>
+</body>
+</html>
