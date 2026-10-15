@@ -2,1230 +2,329 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Proto Wallet</title>
-<meta name="theme-color" content="#f3f3f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<style>
-:root {
-  --bg: #f3f3f7;
-  --bg-2: #ebebf1;
-  --surface: #ffffff;
-  --surface-2: #f6f6f9;
-  --surface-3: #eeeef3;
-  --text: #0b0b10;
-  --text-2: #5d5d6b;
-  --text-3: #9a9aa8;
-  --hair: rgba(15, 15, 30, 0.07);
-  --hair-2: rgba(15, 15, 30, 0.12);
-  --shadow: 0 1px 2px rgba(16, 16, 40, .04), 0 8px 24px -12px rgba(16, 16, 40, .10);
-  --shadow-lg: 0 24px 80px -20px rgba(10, 10, 40, .35);
-  --accent: #5b4cf5;
-  --accent-soft: rgba(91, 76, 245, .10);
-  --green: #0c9f62;
-  --green-soft: rgba(12, 159, 98, .11);
-  --amber: #c27800;
-  --amber-soft: rgba(245, 165, 36, .16);
-  --red: #dc3545;
-  --red-soft: rgba(220, 53, 69, .10);
-  --blue: #2f6bf0;
-  --blue-soft: rgba(47, 107, 240, .10);
-  --grey-soft: rgba(110, 110, 130, .12);
-  --ring-track: rgba(47, 107, 240, .14);
-  --thumb-bg: linear-gradient(145deg, #f4f4f8, #e6e6ee);
-  --backdrop: rgba(10, 10, 20, .32);
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #000000; --bg-2: #0b0b0e; --surface: #131317; --surface-2: #1b1b21; --surface-3: #24242b;
-    --text: #f4f4f7; --text-2: #a3a3b1; --text-3: #6c6c7a;
-    --hair: rgba(255, 255, 255, .07); --hair-2: rgba(255, 255, 255, .12);
-    --shadow: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 8px 24px -12px rgba(0, 0, 0, .6);
-    --shadow-lg: 0 30px 90px -20px rgba(0, 0, 0, .8);
-    --accent: #8b7fff; --accent-soft: rgba(139, 127, 255, .16);
-    --green: #35d08a; --green-soft: rgba(53, 208, 138, .14);
-    --amber: #ffb547; --amber-soft: rgba(255, 181, 71, .15);
-    --red: #ff6b6b; --red-soft: rgba(255, 107, 107, .14);
-    --blue: #6c9bff; --blue-soft: rgba(108, 155, 255, .15);
-    --grey-soft: rgba(160, 160, 180, .14);
-    --ring-track: rgba(108, 155, 255, .18);
-    --thumb-bg: linear-gradient(145deg, #f2f2f6, #dcdce4);
-    --backdrop: rgba(0, 0, 0, .6);
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #000000; --bg-2: #0b0b0e; --surface: #131317; --surface-2: #1b1b21; --surface-3: #24242b;
-  --text: #f4f4f7; --text-2: #a3a3b1; --text-3: #6c6c7a;
-  --hair: rgba(255, 255, 255, .07); --hair-2: rgba(255, 255, 255, .12);
-  --shadow: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 8px 24px -12px rgba(0, 0, 0, .6);
-  --shadow-lg: 0 30px 90px -20px rgba(0, 0, 0, .8);
-  --accent: #8b7fff; --accent-soft: rgba(139, 127, 255, .16);
-  --green: #35d08a; --green-soft: rgba(53, 208, 138, .14);
-  --amber: #ffb547; --amber-soft: rgba(255, 181, 71, .15);
-  --red: #ff6b6b; --red-soft: rgba(255, 107, 107, .14);
-  --blue: #6c9bff; --blue-soft: rgba(108, 155, 255, .15);
-  --grey-soft: rgba(160, 160, 180, .14);
-  --ring-track: rgba(108, 155, 255, .18);
-  --thumb-bg: linear-gradient(145deg, #f2f2f6, #dcdce4);
-  --backdrop: rgba(0, 0, 0, .6);
-  color-scheme: dark;
-}
-
-* { box-sizing: border-box; }
-html, body { margin: 0; }
-body {
-  background: var(--bg);
-  color: var(--text);
-  font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
-}
-button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
-.num { font-variant-numeric: tabular-nums; }
-.mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
-
-/* ---------- top bar ---------- */
-.top {
-  position: sticky; top: 0; z-index: 20;
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 1px solid transparent;
-  transition: border-color .2s;
-}
-.top.scrolled { border-bottom-color: var(--hair); }
-.top-in { max-width: 1180px; margin: 0 auto; padding: 14px 28px; display: flex; align-items: center; gap: 12px; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -.02em; font-size: 17px; }
-.logo {
-  width: 30px; height: 30px; border-radius: 9px;
-  background: conic-gradient(from 210deg, #6d5cff, #b56bff, #ff7aa8, #ffb36b, #6d5cff);
-  position: relative; box-shadow: 0 4px 14px -4px rgba(109, 92, 255, .6);
-}
-.logo::after { content: ""; position: absolute; left: 9px; top: 9px; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,.35); }
-.top-sp { flex: 1; }
-.pill-btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  height: 34px; padding: 0 14px; border-radius: 999px;
-  background: var(--surface); box-shadow: var(--shadow); border: 1px solid var(--hair);
-  font-size: 13.5px; font-weight: 600; letter-spacing: -.01em;
-  transition: transform .15s, background .15s;
-}
-.pill-btn:hover { background: var(--surface-2); }
-.pill-btn:active { transform: scale(.97); }
-.icon-btn { width: 34px; padding: 0; justify-content: center; }
-.me {
-  width: 34px; height: 34px; border-radius: 50%;
-  background: linear-gradient(135deg, #2b2b33, #4a4a57); color: #fff;
-  display: grid; place-items: center; font-weight: 700; font-size: 14px;
-}
-.live { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); font-weight: 500; }
-.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
-.live.off i { background: var(--text-3); box-shadow: none; }
-
-/* ---------- layout ---------- */
-.wrap { max-width: 1180px; margin: 0 auto; padding: 8px 28px 80px; }
-.greet { margin: 14px 0 18px; }
-.greet h1 { margin: 0; font-size: 30px; letter-spacing: -.035em; font-weight: 750; }
-.greet p { margin: 4px 0 0; color: var(--text-2); font-size: 15px; }
-.grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 22px; align-items: start; }
-.col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
-
-/* ---------- hero ---------- */
-.hero {
-  display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 26px;
-  background: var(--surface); border-radius: 28px; padding: 22px; box-shadow: var(--shadow); border: 1px solid var(--hair);
-}
-.card {
-  position: relative; aspect-ratio: 1.586; border-radius: 20px; overflow: hidden; color: #fff;
-  background:
-    radial-gradient(120% 90% at 0% 0%, #7b6cff 0%, transparent 55%),
-    radial-gradient(90% 90% at 100% 10%, #ff7ab0 0%, transparent 55%),
-    radial-gradient(120% 120% at 80% 120%, #ffb36b 0%, transparent 50%),
-    linear-gradient(135deg, #1d1840, #120f24);
-  box-shadow: 0 18px 40px -18px rgba(70, 50, 200, .7), inset 0 0 0 1px rgba(255, 255, 255, .14);
-  padding: 18px 20px; display: flex; flex-direction: column;
-  transform: perspective(900px) rotateX(0) rotateY(0); transition: transform .4s cubic-bezier(.2, .8, .2, 1);
-}
-.card::before {
-  content: ""; position: absolute; inset: 0;
-  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .22) 45%, transparent 60%);
-  background-size: 250% 100%; animation: sheen 7s ease-in-out infinite; pointer-events: none;
-}
-.card::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .25; mix-blend-mode: overlay;
-  background-image: radial-gradient(rgba(255, 255, 255, .5) 1px, transparent 1px); background-size: 3px 3px;
-}
-@keyframes sheen { 0%, 100% { background-position: 120% 0; } 50% { background-position: -20% 0; } }
-.card-top { display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1; }
-.card-brand { font-weight: 700; letter-spacing: -.02em; font-size: 15px; }
-.card-brand small { display: block; font-weight: 500; opacity: .75; font-size: 11.5px; letter-spacing: .02em; margin-top: 1px; }
-.chip-gold {
-  width: 36px; height: 27px; border-radius: 6px; margin-top: 18px; position: relative; z-index: 1;
-  background: linear-gradient(135deg, #f4dc9a, #c9a24a 55%, #f2d68a);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15);
-}
-.chip-gold::before { content: ""; position: absolute; inset: 7px 0; border-top: 1px solid rgba(0, 0, 0, .2); border-bottom: 1px solid rgba(0, 0, 0, .2); }
-.chip-gold::after { content: ""; position: absolute; inset: 0 12px; border-left: 1px solid rgba(0, 0, 0, .2); border-right: 1px solid rgba(0, 0, 0, .2); }
-.card-bottom { margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end; position: relative; z-index: 1; }
-.card-num { font-size: 15px; letter-spacing: .14em; font-weight: 600; opacity: .95; }
-.card-name { font-size: 11px; opacity: .8; letter-spacing: .06em; text-transform: uppercase; margin-top: 4px; }
-.card-mark { display: flex; }
-.card-mark i { width: 26px; height: 26px; border-radius: 50%; background: rgba(255, 255, 255, .85); }
-.card-mark i + i { margin-left: -10px; background: rgba(255, 255, 255, .45); }
-
-.hero-stats { display: flex; flex-direction: column; min-width: 0; }
-.label { font-size: 13px; color: var(--text-2); font-weight: 550; letter-spacing: -.005em; }
-.balance { font-size: 48px; font-weight: 750; letter-spacing: -.045em; line-height: 1.05; margin: 6px 0 2px; }
-.balance .p { font-size: 28px; color: var(--text-3); letter-spacing: -.03em; }
-.sub { color: var(--text-2); font-size: 13.5px; }
-.bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; align-items: end; height: 64px; margin-top: auto; padding-top: 14px; }
-.bar { display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
-.bar b { width: 100%; max-width: 26px; border-radius: 6px; background: var(--surface-3); min-height: 4px; transition: height .5s cubic-bezier(.2, .8, .2, 1); }
-.bar.on b { background: linear-gradient(180deg, #8f7dff, #5b4cf5); }
-.bar span { font-size: 11px; color: var(--text-3); font-weight: 600; }
-.bar.today span { color: var(--text); }
-.quick { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-.qchip {
-  display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 999px;
-  background: var(--surface-2); border: 1px solid var(--hair); font-size: 12.5px; font-weight: 600; color: var(--text-2);
-}
-.qchip b { color: var(--text); font-weight: 700; }
-.qchip i { width: 7px; height: 7px; border-radius: 50%; }
-
-/* ---------- sections ---------- */
-.section-h { display: flex; align-items: baseline; gap: 10px; margin: 0 4px 10px; }
-.section-h h2 { margin: 0; font-size: 20px; letter-spacing: -.03em; font-weight: 720; }
-.section-h .count { font-size: 13px; color: var(--text-3); font-weight: 600; }
-.section-h .hint { margin-left: auto; font-size: 12.5px; color: var(--text-3); }
-.panel { background: var(--surface); border-radius: 22px; box-shadow: var(--shadow); border: 1px solid var(--hair); overflow: hidden; }
-.group + .group { border-top: 1px solid var(--hair); }
-.group-h {
-  display: flex; align-items: center; gap: 8px; padding: 14px 18px 4px;
-  font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3);
-}
-.group-h .dot { width: 7px; height: 7px; border-radius: 50%; }
-.group-h .n { margin-left: auto; letter-spacing: 0; text-transform: none; font-weight: 600; }
-
-/* ---------- rows ---------- */
-.row {
-  display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 14px; align-items: center;
-  padding: 12px 18px; position: relative; cursor: pointer; transition: background .15s;
-  text-align: left; width: 100%;
-}
-.row:hover { background: var(--surface-2); }
-.row + .row::before { content: ""; position: absolute; top: 0; left: 88px; right: 18px; border-top: 1px solid var(--hair); }
-.row.enter { animation: enter .55s cubic-bezier(.2, .8, .2, 1); }
-@keyframes enter { from { opacity: 0; transform: translateY(-8px); background: var(--accent-soft); } to { opacity: 1; transform: none; } }
-.thumb { width: 56px; height: 56px; position: relative; }
-.thumb .ph {
-  width: 56px; height: 56px; border-radius: 16px; background: var(--thumb-bg); overflow: hidden;
-  display: grid; place-items: center; border: 1px solid var(--hair);
-}
-.thumb .ph img, .thumb .ph svg { width: 100%; height: 100%; object-fit: contain; display: block; }
-.thumb .ph svg { padding: 3px; }
-.thumb.dim .ph { filter: grayscale(.5); opacity: .8; }
-.av {
-  width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
-  color: #fff; font-size: 10.5px; font-weight: 750; letter-spacing: -.02em;
-  position: absolute; right: -5px; bottom: -5px; box-shadow: 0 0 0 2.5px var(--surface);
-}
-.av.lg { width: 40px; height: 40px; font-size: 15px; position: static; box-shadow: none; }
-.av.md { width: 34px; height: 34px; font-size: 13px; position: static; box-shadow: none; }
-.r-main { min-width: 0; }
-.r-title { font-weight: 650; font-size: 15.5px; letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.r-sub { color: var(--text-2); font-size: 13.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.r-why { color: var(--text-2); font-size: 13px; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.r-why b { color: var(--text); font-weight: 600; }
-.r-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
-.r-right.h { flex-direction: row; align-items: center; gap: 12px; }
-.amt { font-weight: 680; font-size: 16px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.amt.strike { text-decoration: line-through; color: var(--text-3); font-weight: 600; }
-.amt.muted { color: var(--text-3); font-weight: 600; }
-.chip {
-  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px;
-  font-size: 11.5px; font-weight: 680; white-space: nowrap; letter-spacing: -.005em;
-}
-.chip svg { width: 12px; height: 12px; }
-.c-green { background: var(--green-soft); color: var(--green); }
-.c-amber { background: var(--amber-soft); color: var(--amber); }
-.c-red { background: var(--red-soft); color: var(--red); }
-.c-blue { background: var(--blue-soft); color: var(--blue); }
-.c-grey { background: var(--grey-soft); color: var(--text-2); }
-.c-violet { background: var(--accent-soft); color: var(--accent); }
-
-.ring { width: 40px; height: 40px; position: relative; flex: none; }
-.ring svg { width: 40px; height: 40px; transform: rotate(-90deg); }
-.ring .trk { stroke: var(--ring-track); }
-.ring .val { stroke: var(--blue); transition: stroke-dashoffset 1s linear; }
-.ring span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 10.5px; font-weight: 750; color: var(--blue); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-.undo-btn {
-  height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13.5px; font-weight: 680;
-  background: var(--blue-soft); color: var(--blue); transition: transform .12s, filter .12s;
-}
-.undo-btn:hover { filter: brightness(1.08); }
-.undo-btn:active { transform: scale(.96); }
-
-/* ---------- waiting cards ---------- */
-.waiting { display: grid; gap: 12px; }
-.ask {
-  background: var(--surface); border-radius: 22px; box-shadow: var(--shadow); border: 1px solid var(--hair);
-  padding: 16px; display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 16px; position: relative; overflow: hidden;
-  cursor: pointer;
-}
-.ask::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--amber); }
-.ask.enter { animation: enter .55s cubic-bezier(.2, .8, .2, 1); }
-.ask .big { grid-row: span 3; align-self: start; width: 92px; height: 92px; border-radius: 18px; background: var(--thumb-bg); border: 1px solid var(--hair); display: grid; place-items: center; overflow: hidden; position: relative; }
-.ask .big img, .ask .big svg { width: 100%; height: 100%; object-fit: contain; }
-.ask .big svg { padding: 10px; }
-.ask .big .av { right: 6px; bottom: 6px; }
-.ask-top { display: flex; align-items: flex-start; gap: 10px; }
-.ask-top .r-title { font-size: 16.5px; }
-.ask-top .amt { margin-left: auto; font-size: 20px; }
-.ask-why, .ask-acts { grid-column: 2; }
-.ask-why { margin: -8px 0 0; font-size: 14px; color: var(--text-2); line-height: 1.45; }
-.ask-why b { color: var(--text); font-weight: 620; }
-.ask-acts { display: flex; gap: 8px; flex-wrap: wrap; }
-.btn {
-  white-space: nowrap;
-  height: 40px; padding: 0 20px; border-radius: 999px; font-weight: 680; font-size: 14.5px; letter-spacing: -.01em;
-  display: inline-flex; align-items: center; gap: 8px; transition: transform .12s, filter .12s, opacity .12s;
-}
-.btn:active { transform: scale(.97); }
-.btn:disabled { opacity: .5; pointer-events: none; }
-.btn-primary { background: var(--text); color: var(--bg); }
-.btn-primary:hover { filter: brightness(1.15); }
-.btn-ghost { background: var(--surface-3); color: var(--text); }
-.btn-ghost:hover { filter: brightness(.97); }
-.btn-blue { background: var(--blue); color: #fff; }
-.btn-danger { background: var(--red-soft); color: var(--red); }
-
-/* ---------- side panels ---------- */
-.side-card { background: var(--surface); border-radius: 22px; box-shadow: var(--shadow); border: 1px solid var(--hair); padding: 18px; }
-.side-card h3 { margin: 0; font-size: 16px; letter-spacing: -.02em; font-weight: 700; }
-.side-card .lede { margin: 3px 0 14px; color: var(--text-2); font-size: 13px; }
-.mem { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
-.mem + .mem { border-top: 1px solid var(--hair); }
-.mem-ic { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex: none; }
-.mem-ic svg { width: 18px; height: 18px; }
-.mem-k { font-size: 12px; color: var(--text-3); font-weight: 600; }
-.mem-v { font-weight: 650; font-size: 15px; letter-spacing: -.015em; }
-.mem .chip { margin-left: auto; }
-.sigline { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--hair); font-size: 12px; color: var(--text-3); }
-.sigline svg { width: 14px; height: 14px; color: var(--green); }
-
-.mandate-q { font-size: 18px; font-weight: 680; letter-spacing: -.025em; line-height: 1.3; margin: 8px 0 10px; }
-.mandate-q::before { content: "“"; color: var(--text-3); }
-.mandate-q::after { content: "”"; color: var(--text-3); }
-.kv { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 6px 0; color: var(--text-2); }
-.kv b { color: var(--text); font-weight: 600; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.blk { padding: 10px 0; }
-.blk + .blk { border-top: 1px solid var(--hair); }
-.blk-h { display: flex; align-items: center; gap: 12px; }
-.blk-name { font-weight: 650; font-size: 15px; letter-spacing: -.015em; }
-.blk-sub { font-size: 12.5px; color: var(--text-2); }
-.blk details { margin-top: 10px; }
-.blk summary {
-  list-style: none; cursor: pointer; font-size: 12.5px; font-weight: 650; color: var(--text-2);
-  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--hair);
-}
-.blk summary::-webkit-details-marker { display: none; }
-.blk summary svg { width: 12px; height: 12px; transition: transform .2s; }
-.blk details[open] summary svg { transform: rotate(90deg); }
-.evidence { margin-top: 10px; background: var(--surface-2); border-radius: 14px; padding: 12px; border: 1px solid var(--hair); font-size: 13px; }
-.quote {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; line-height: 1.5;
-  background: var(--red-soft); color: var(--red); border-radius: 10px; padding: 8px 10px; margin: 6px 0 8px; word-break: break-word;
-}
-
-.empty { padding: 26px 18px; text-align: center; color: var(--text-3); font-size: 14px; }
-.empty b { display: block; color: var(--text-2); font-size: 15px; margin-bottom: 2px; }
-
-/* ---------- sheet ---------- */
-.scrim {
-  position: fixed; inset: 0; background: var(--backdrop); z-index: 50; opacity: 0; pointer-events: none; transition: opacity .25s;
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-}
-.scrim.open { opacity: 1; pointer-events: auto; }
-.sheet {
-  position: fixed; z-index: 60; left: 50%; top: 50%; width: min(600px, calc(100vw - 32px)); max-height: min(88vh, 900px);
-  transform: translate(-50%, -46%) scale(.98); opacity: 0; pointer-events: none;
-  background: var(--bg); border-radius: 28px; box-shadow: var(--shadow-lg); border: 1px solid var(--hair);
-  transition: transform .35s cubic-bezier(.2, .9, .2, 1), opacity .25s, visibility 0s linear .35s; display: flex; flex-direction: column; overflow: hidden;
-  visibility: hidden;
-}
-.sheet.open { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; visibility: visible; transition-delay: 0s; }
-.sheet-scroll { overflow-y: auto; padding: 22px 22px 26px; overscroll-behavior: contain; }
-.grabber { display: none; }
-.sheet-close {
-  position: absolute; right: 14px; top: 14px; width: 32px; height: 32px; border-radius: 50%; background: var(--surface-3);
-  display: grid; place-items: center; z-index: 2; color: var(--text-2);
-}
-.sheet-close svg { width: 14px; height: 14px; }
-.d-head { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 8px 0 18px; }
-.d-thumb { width: 116px; height: 116px; border-radius: 28px; background: var(--thumb-bg); border: 1px solid var(--hair); display: grid; place-items: center; overflow: hidden; position: relative; }
-.d-thumb img, .d-thumb svg { width: 100%; height: 100%; object-fit: contain; }
-.d-thumb svg { padding: 12px; }
-.d-merchant { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-weight: 650; font-size: 15px; }
-.d-merchant .av { width: 22px; height: 22px; font-size: 10px; position: static; box-shadow: none; }
-.d-amt { font-size: 42px; font-weight: 760; letter-spacing: -.045em; margin: 4px 0 6px; font-variant-numeric: tabular-nums; }
-.d-amt .p { font-size: 26px; color: var(--text-3); }
-.d-amt.muted { color: var(--text-3); }
-.d-amt.strike { text-decoration: line-through; text-decoration-thickness: 3px; color: var(--text-3); }
-.d-when { font-size: 13px; color: var(--text-3); margin-top: 6px; }
-.d-acts { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
-.d-card { background: var(--surface); border-radius: 20px; border: 1px solid var(--hair); padding: 16px; margin-top: 12px; }
-.d-card h4 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); font-weight: 700; display: flex; align-items: center; gap: 8px; }
-.d-card h4 .chip { margin-left: auto; text-transform: none; letter-spacing: 0; }
-.verdict { font-size: 17px; font-weight: 640; letter-spacing: -.02em; line-height: 1.4; }
-.verdict small { display: block; font-size: 14px; color: var(--text-2); font-weight: 450; letter-spacing: -.005em; margin-top: 6px; }
-.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.cmp { background: var(--surface-2); border-radius: 16px; padding: 12px; border: 1px solid var(--hair); min-width: 0; }
-.cmp-h { font-size: 11.5px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
-.cmp-pic { height: 92px; border-radius: 12px; background: var(--thumb-bg); display: grid; place-items: center; overflow: hidden; margin-bottom: 8px; }
-.cmp-pic img, .cmp-pic svg { height: 92px; width: 100%; object-fit: contain; }
-.cmp-pic svg { padding: 8px; }
-.cmp-q { font-weight: 650; font-size: 14.5px; letter-spacing: -.015em; line-height: 1.3; }
-.checks { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 5px; font-size: 13px; }
-.checks li { display: flex; gap: 7px; align-items: flex-start; }
-.checks svg { width: 15px; height: 15px; flex: none; margin-top: 1px; }
-.checks .ok { color: var(--green); }
-.checks .no { color: var(--red); }
-.checks .no-t { color: var(--red); font-weight: 600; }
-.meter { margin: 6px 0 12px; }
-.meter-top { display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
-.meter-top span:last-child { font-variant-numeric: tabular-nums; }
-.meter-track { height: 8px; border-radius: 99px; background: var(--surface-3); position: relative; overflow: visible; }
-.meter-fill { height: 100%; border-radius: 99px; transition: width .6s cubic-bezier(.2, .8, .2, 1); }
-.meter-mark { position: absolute; top: -4px; bottom: -4px; width: 2px; border-radius: 2px; background: var(--text-3); }
-.meter-cap { font-size: 11.5px; color: var(--text-3); margin-top: 5px; }
-.dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; font-size: 13.5px; }
-.dl dt { color: var(--text-2); }
-.dl dd { margin: 0; text-align: right; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
-.dl dd.mono { font-weight: 500; }
-.factchips { display: flex; gap: 6px; flex-wrap: wrap; }
-.fchip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 650; font-size: 13px; }
-.fchip svg { width: 13px; height: 13px; }
-.explain { font-size: 14px; line-height: 1.55; color: var(--text); }
-.explain p { margin: 0 0 8px; }
-.explain ul, .explain ol { margin: 0 0 8px; padding-left: 20px; }
-.explain h5 { margin: 0 0 6px; font-size: 14px; }
-.edges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.edge { font-size: 12px; padding: 4px 9px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--hair); color: var(--text-2); }
-.edge b { color: var(--text); font-weight: 600; }
-.sig { word-break: break-all; color: var(--text-2); background: var(--surface-2); border-radius: 10px; padding: 8px 10px; border: 1px solid var(--hair); margin-top: 8px; }
-details.raw summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-2); }
-details.raw pre { white-space: pre-wrap; word-break: break-word; background: var(--surface-2); border-radius: 12px; padding: 10px; margin: 8px 0 0; max-height: 260px; overflow: auto; }
-a.ext { color: var(--accent); text-decoration: none; font-weight: 600; }
-a.ext:hover { text-decoration: underline; }
-
-/* form */
-.field { display: grid; gap: 6px; margin-top: 12px; }
-.field label { font-size: 13px; color: var(--text-2); font-weight: 600; }
-.field input {
-  height: 46px; border-radius: 14px; border: 1px solid var(--hair-2); background: var(--surface); color: var(--text);
-  padding: 0 14px; font: inherit; font-size: 16px; outline: none; transition: border-color .15s, box-shadow .15s;
-}
-.field input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
-.token { margin-top: 14px; display: none; }
-.token.show { display: block; }
-
-/* toast */
-.toast {
-  position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); opacity: 0; z-index: 80;
-  background: var(--text); color: var(--bg); border-radius: 999px; padding: 11px 18px; font-weight: 620; font-size: 14px;
-  box-shadow: var(--shadow-lg); transition: transform .3s cubic-bezier(.2, .9, .2, 1), opacity .25s; pointer-events: none;
-  display: flex; align-items: center; gap: 8px;
-}
-.toast.show { transform: translate(-50%, 0); opacity: 1; }
-.toast svg { width: 16px; height: 16px; }
-
-.spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: rot .7s linear infinite; }
-@keyframes rot { to { transform: rotate(360deg); } }
-
-/* ---------- responsive ---------- */
-@media (max-width: 1040px) {
-  .grid { grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; }
-  .hero { grid-template-columns: 280px minmax(0, 1fr); gap: 20px; padding: 18px; }
-  .balance { font-size: 42px; }
-  .wrap, .top-in { padding-left: 22px; padding-right: 22px; }
-}
-@media (max-width: 860px) {
-  .grid { grid-template-columns: minmax(0, 1fr); }
-  .side { order: 2; }
-}
-@media (max-width: 620px) {
-  .wrap { padding: 4px 16px 60px; }
-  .top-in { padding: 10px 16px; }
-  .live span, .hide-sm { display: none; }
-  .greet { margin: 8px 0 14px; }
-  .greet h1 { font-size: 26px; }
-  .hero { grid-template-columns: minmax(0, 1fr); padding: 14px; border-radius: 26px; gap: 16px; }
-  .balance { font-size: 44px; }
-  .row { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 12px; padding: 11px 14px; }
-  .row + .row::before { left: 74px; right: 14px; }
-  .thumb, .thumb .ph { width: 48px; height: 48px; }
-  .thumb .ph { border-radius: 14px; }
-  .r-title { font-size: 15px; }
-  .r-why { -webkit-line-clamp: 1; }
-  .r-right.h { gap: 8px; }
-  .ring, .ring svg { width: 34px; height: 34px; }
-  .undo-btn { padding: 0 12px; }
-  .group-h { padding: 12px 14px 2px; }
-  .ask { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 14px; }
-  .ask-why, .ask-acts { grid-column: 1 / -1; }
-  .ask .big { grid-row: auto; }
-  .ask-why { margin: 0; }
-  .lbl-lg { display: none; }
-  .ask .big { width: 64px; height: 64px; border-radius: 16px; }
-  .ask .big svg { padding: 6px; }
-  .ask-top .amt { font-size: 17px; }
-  .ask-acts .btn { flex: 1; justify-content: center; }
-  .sheet {
-    left: 0; right: 0; top: auto; bottom: 0; width: 100%; max-height: 92vh; border-radius: 26px 26px 0 0;
-    transform: translateY(100%); opacity: 1;
-  }
-  .sheet.open { transform: translateY(0); }
-  .grabber { display: block; width: 38px; height: 5px; border-radius: 9px; background: var(--hair-2); margin: 8px auto 0; flex: none; }
-  .sheet-scroll { padding: 10px 16px calc(24px + env(safe-area-inset-bottom)); }
-  .compare { grid-template-columns: 1fr 1fr; gap: 8px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
-}
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>proto · Wallet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-<header class="top" id="top">
-  <div class="top-in">
-    <div class="brand"><div class="logo"></div>Proto</div>
-    <div class="top-sp"></div>
-    <div class="live" id="live"><i></i><span>Live</span></div>
-    <button class="pill-btn" id="signBtn" title="Sign a new shopping request for your agent">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-      <span class="hide-sm">Sign request</span>
-    </button>
-    <button class="pill-btn icon-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle theme">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-    </button>
-    <div class="me">G</div>
-  </div>
-</header>
-
-<main class="wrap">
-  <div class="greet">
-    <h1 id="greet">Good evening, George</h1>
-    <p id="greetSub">Your agent shops. Your wallet checks every cart before a penny moves.</p>
-  </div>
-
-  <div class="grid">
-    <div class="col">
-      <section class="hero" id="hero">
-        <div class="card" id="card">
-          <div class="card-top">
-            <div class="card-brand">Proto<small>AGENT CARD</small></div>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="2" stroke-linecap="round"><path d="M8.5 7.5a7 7 0 0 1 0 9"/><path d="M12 5a11 11 0 0 1 0 14"/><path d="M15.5 2.5a15 15 0 0 1 0 19"/></svg>
-          </div>
-          <div class="chip-gold"></div>
-          <div class="card-bottom">
-            <div>
-              <div class="card-num">•••• 4242</div>
-              <div class="card-name">Claude · shopping agent</div>
-            </div>
-            <div class="card-mark"><i></i><i></i></div>
-          </div>
-        </div>
-        <div class="hero-stats">
-          <div class="label">Agent spending this week</div>
-          <div class="balance num" id="balance">£0<span class="p">.00</span></div>
-          <div class="sub" id="balanceSub">Nothing spent yet</div>
-          <div class="quick" id="quick"></div>
-          <div class="bars" id="bars"></div>
-        </div>
-      </section>
-
-      <section id="waitingSec" hidden>
-        <div class="section-h"><h2>Waiting for you</h2><span class="count" id="waitingCount"></span><span class="hint hide-sm">Your agent can't decide these alone</span></div>
-        <div class="waiting" id="waiting"></div>
-      </section>
-
-      <section>
-        <div class="section-h"><h2>Activity</h2><span class="count" id="actCount"></span><span class="hint hide-sm">Tap any row for the full why</span></div>
-        <div class="panel" id="activity"></div>
-      </section>
-    </div>
-
-    <aside class="col side">
-      <section class="side-card" id="mandate"></section>
-      <section class="side-card">
-        <h3>What your wallet knows about you</h3>
-        <p class="lede">Signed by you. Shops and agents can't edit these.</p>
-        <div id="memories"></div>
-      </section>
-      <section class="side-card" id="blockedCard">
-        <h3>Blocked merchants</h3>
-        <p class="lede">Shops your wallet won't pay, and why.</p>
-        <div id="blocked"></div>
-      </section>
+<main class="view on" id="v-wallet">
+  <div class="wnav"><nav class="seg" id="wtabs"><button data-wtab="overview" class="on">Overview</button><button data-wtab="memory">Memory <span class="n" id="memn">–</span> <span class="kbd">M</span></button></nav></div>
+  <section class="wsec on" id="w-overview">
+  <div class="wl">
+    <aside>
+      <div class="card">
+        <div class="row"><span class="logo"><svg viewBox="0 0 20 20"><use href="#pmark"/></svg>proto</span><span class="tag">Agent card</span></div>
+        <div class="mid"><div class="chip"></div><svg class="nfc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8.5 7.5a6 6 0 0 1 0 9"/><path d="M12 5a9.5 9.5 0 0 1 0 14"/><path d="M15.5 2.8a13 13 0 0 1 0 18.4"/></svg></div>
+        <div><div class="num">•••• 4242</div><div class="row" style="margin-top:6px"><span class="holder">George Hall</span><span class="sm">Exp 06/29 · debit</span></div></div>
+      </div>
+      <div class="money">
+        <div class="lbl">Spent by agents</div>
+        <div class="big" id="spent">£0.00</div>
+        <div class="meter" id="meter" style="display:none"></div>
+        <div class="mrow"><span><i class="dot pay"></i>Charged <b id="m-charged" class="mono">£0.00</b></span><span><i class="dot hold"></i>On hold <b id="m-held" class="mono">£0.00</b></span></div>
+      </div>
+      <div class="box">
+        <h5><span>Signed memories</span><span class="linkbtn" data-mem2 id="memlink">all →</span></h5>
+        <div class="list" id="memories"></div>
+      </div>
+      <div class="box">
+        <h5><span>Blocked merchants</span><span id="blkn">0</span></h5>
+        <div class="list" id="blocked"></div>
+      </div>
     </aside>
+    <section>
+      <div class="acthead"><h2>Activity</h2><span class="live" id="wlive"><i></i>Live</span></div>
+      <div class="muted">Every purchase an agent attempts is checked here first. You see what it bought, and why.</div>
+      <div id="activity"></div>
+    </section>
   </div>
+  </section>
+  <section class="wsec" id="w-memory">
+    <div class="memwrap">
+      <div class="memhead"><div><h2>Signed memories</h2><div class="muted" style="margin-top:4px">Facts you signed about yourself. Agents and shops never see them. For each request the wallet asks Cognee which ones matter, and checks the cart against only those.</div></div><span id="relchip"></span></div>
+      <div class="memgrid">
+        <div class="panel graph" id="graph"></div>
+        <div class="panel insp" id="insp"></div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <div class="scrim" id="scrim"></div>
-<div class="sheet" id="sheet" role="dialog" aria-modal="true">
-  <div class="grabber"></div>
-  <button class="sheet-close" id="sheetClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-  <div class="sheet-scroll" id="sheetBody"></div>
-</div>
-<div class="toast" id="toast"></div>
+<aside class="drawer" id="drawer"></aside>
 
+<script src="/static/app.js"></script>
 <script>
-(() => {
-const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
+topbar("wallet");
+const S = {audit:null, graph:null, run:null, sheet:null, wtab:"overview", mem:null, seenRows:null, seenBlk:null, busy:false};
 
-/* ---------- theme ---------- */
-const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
-const savedTheme = store.get("proto-theme");
-if (savedTheme) document.documentElement.dataset.theme = savedTheme;
-$("themeBtn").onclick = () => {
-  const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-  const next = cur === "dark" ? "light" : "dark";
-  document.documentElement.dataset.theme = next;
-  store.set("proto-theme", next);
-};
-addEventListener("scroll", () => $("top").classList.toggle("scrolled", scrollY > 4), { passive: true });
-
-/* ---------- icons ---------- */
-const I = {
-  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
-  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></svg>',
-  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6Z"/><path d="m8.8 12 2.2 2.2 4.3-4.4"/></svg>',
-  ban: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/></svg>',
-  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
-  chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
-  ruler: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5 15.5 3 21 8.5 8.5 21Z"/><path d="m7 11.5 2 2M10 8.5l1.5 1.5M13 5.5l2 2M5.5 14.5 7 16"/></svg>',
-  fit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10l1.5 18h-4.5L12 9l-2 12H5.5Z"/><path d="M7 6h10"/></svg>',
-  leaf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8 8l8 8"/><path d="M9.5 13.5c-1-2.5.5-5 3.5-5.5"/></svg>',
-  key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></svg>',
-  bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 9-12h-7Z"/></svg>',
-  undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
-};
-
-/* ---------- product art ---------- */
-const COLOURS = { black: "#1f1f25", charcoal: "#4a4c54", grey: "#8a8c94", gray: "#8a8c94", navy: "#22305a", blue: "#3d5f9a", indigo: "#2f3c7e", white: "#e9e9ee", stone: "#c9bda5", beige: "#d6c6a8", khaki: "#a89a6c", brown: "#6b4a33", green: "#3f6b4a", red: "#a33a3a" };
-function shade(hex, amt) {
-  const n = parseInt(hex.slice(1), 16);
-  const f = (v) => Math.max(0, Math.min(255, Math.round(v + amt * 255)));
-  return "#" + [f(n >> 16), f((n >> 8) & 255), f(n & 255)].map((v) => v.toString(16).padStart(2, "0")).join("");
-}
-function itemKind(it) {
-  const k = (it?.kind || "").toLowerCase();
-  if (k) return k;
-  const n = (it?.name || "").toLowerCase();
-  if (n.includes("short")) return "shorts";
-  if (n.includes("chino")) return "chinos";
-  return "jeans";
-}
-function productSVG(it) {
-  const col = COLOURS[(it?.colour || "").toLowerCase()] || "#3d5f9a";
-  const hi = shade(col, .16), lo = shade(col, -.06), st = shade(col, .3);
-  const shorts = itemKind(it) === "shorts";
-  const legY = shorts ? 40 : 60;
-  const legs = shorts
-    ? `M17 13.5H47L50.5 ${legY}H35.5L32 25L28.5 ${legY}H13.5Z`
-    : `M17 13.5H47L51 ${legY}H36L32 25L28 ${legY}H13Z`;
-  return `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <defs><linearGradient id="g${col.slice(1)}${shorts ? "s" : "j"}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${hi}"/><stop offset="1" stop-color="${lo}"/></linearGradient></defs>
-    <path d="${legs}" fill="url(#g${col.slice(1)}${shorts ? "s" : "j"})"/>
-    <rect x="17" y="7.5" width="30" height="6.5" rx="1.6" fill="${shade(col, .08)}"/>
-    <rect x="30.6" y="8.6" width="2.8" height="4.2" rx="1" fill="#d6b45a"/>
-    <path d="M32 14v11" stroke="${st}" stroke-width=".7" stroke-dasharray="1.2 1.2" opacity=".8"/>
-    <path d="M18.5 14c.5 4 3 6.5 7 7M45.5 14c-.5 4-3 6.5-7 7" fill="none" stroke="${st}" stroke-width=".7" stroke-dasharray="1.2 1.2" opacity=".8"/>
-    <path d="M20 7.5v6.5M44 7.5v6.5M26 7.5v6.5M38 7.5v6.5" stroke="${shade(col, -.1)}" stroke-width="1.2" opacity=".7"/>
-    ${shorts ? `<path d="M14 ${legY - 3.5}h14.6M35.4 ${legY - 3.5}h14.8" stroke="${st}" stroke-width=".7" stroke-dasharray="1.2 1.2" opacity=".8"/>` : `<path d="M13.4 ${legY - 3.5}h14.8M35.8 ${legY - 3.5}h14.8" stroke="${st}" stroke-width=".7" stroke-dasharray="1.2 1.2" opacity=".8"/>`}
-  </svg>`;
-}
-function productArt(it) {
-  if (it?.image) {
-    return `<img src="${esc(it.image)}" alt="${esc(it.name || "")}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{innerHTML:this.dataset.fb}).firstChild)" data-fb="${esc(productSVG(it))}">`;
+/* ---------------- memory graph model ---------------- */
+const GROUPS = [["Clothing",/waist|fit|material|shoe|shirt|size|colour|color|cloth|wear|brand/],["Food & health",/allerg|diet|vegetar|vegan|coffee|fragrance|food|drink|health/],
+  ["Home",/live|dog|pet|commut|cycl|bike|deliver|home|address/],["Travel",/seat|hotel|train|passport|travel|flight|airline/],
+  ["Tech",/phone|kindle|read|charger|subscri|tech|device|laptop|spotify/],["Money",/budget|pay|bnpl|money|spend|gift|price/]];
+const groupOf = rel => (GROUPS.find(([g, re]) => re.test(String(rel || "").toLowerCase())) || ["Other"])[0];
+function graphModel() {
+  const g = S.graph; if (!g || !(g.edges || []).length) {
+    // fall back to audit facts if the graph endpoint is missing
+    const facts = (S.audit && S.audit.facts) || [];
+    return {edges: facts.map((f, i) => ({id: "f" + i, source: "george", target: "v" + i, relation: f.relation, object: f.object, signed_at: f.signed_at, verified: f.verified !== false})), nodes: [], relevant: new Set(), request: null};
   }
-  return productSVG(it);
+  const nodes = {}; (g.nodes || []).forEach(n => nodes[n.id] = n);
+  const edges = g.edges.map(e => ({...e, object: e.object ?? (nodes[e.target] || {}).label ?? e.target}));
+  const rows = (S.audit && S.audit.rows) || [];
+  const req = g.latest_request || (rows.length ? rows[rows.length - 1].request : null) || Object.keys(g.relevant || {})[0];
+  let rel = (g.relevant || {})[req] || [];
+  return {edges, nodes: g.nodes || [], relevant: new Set(rel), request: req};
+}
+const edgeText = e => factText({relation: e.relation, object: e.object});
+
+/* ---------------- render: wallet overview ---------------- */
+function renderWallet() {
+  const A = S.audit || {rows: [], blocklist: [], facts: []}, rows = [...(A.rows || [])].reverse(), facts = A.facts || [];
+  const by = ks => rows.filter(r => ks.includes(kind(r)));
+  const charged = by(["pay"]).reduce((x, r) => x + amountOf(r), 0), held = by(["hold"]).reduce((x, r) => x + amountOf(r), 0);
+  $("#spent").textContent = gbp(charged); $("#m-charged").textContent = gbp(charged); $("#m-held").textContent = gbp(held);
+  const tot = charged + held;
+  $("#meter").style.display = tot ? "flex" : "none";
+  $("#meter").innerHTML = tot ? `<i style="width:${charged / tot * 100}%;background:var(--ok)"></i><i style="flex:1;background:var(--hold)"></i>` : "";
+  // memories: the ones Cognee picked for the latest request, else the first three
+  const G = graphModel(), total = G.edges.length || facts.length;
+  let shown = G.edges.filter(e => G.relevant.has(e.id));
+  if (!shown.length) shown = G.edges.slice(0, 3);
+  $("#memn").textContent = total || "–";
+  $("#memlink").textContent = `${shown.length} of ${total} · all →`;
+  $("#memories").innerHTML = shown.map(e => { const t = edgeText(e);
+    return `<div class="mem"><span class="ic">${esc(t.replace(/^(avoids|likes|lives in|shoe size) /i, "").charAt(0).toUpperCase())}</span><span class="t">${esc(t)}</span><span class="s">${e.verified === false ? '<b style="color:var(--bad)">✕</b> invalid' : `<b>✓</b> signed ${esc(String(e.signed_at || "").slice(5, 10))}`}</span></div>`; }).join("")
+    || `<div class="mem"><span class="t dim" style="font-weight:400">No signed memories yet.</span></div>`;
+  // blocklist
+  const bl = A.blocklist || [], first = S.seenBlk == null;
+  $("#blocked").innerHTML = bl.map(b => { const fresh = !first && !S.seenBlk.has(b.merchant_id);
+    return `<div class="mem ${fresh ? "newb" : ""}"><span class="ic" style="color:var(--bad)">⊘</span><span class="t">${esc(b.merchant_name || b.merchant_id)}<div class="bsub">Prompt injection${b.at ? " · " + fmtDay(b.at) : ""}</div></span>${b.p_injection != null ? `<span class="pill block">P(inj) ${(+b.p_injection).toFixed(2)}</span>` : ""}</div>`; }).join("")
+    || `<div class="mem"><span class="t dim" style="font-weight:400">No merchants blocked.</span></div>`;
+  $("#blkn").textContent = bl.length;
+  S.seenBlk = new Set(bl.map(b => b.merchant_id));
+  // activity
+  const firstRows = S.seenRows == null; S.seenRows = S.seenRows || new Set();
+  const now = Date.now();
+  const canUndo = r => ["pay", "hold"].includes(kind(r)) && (r.undo || {}).window_hours && (!r.window_ends_at || Date.parse(r.window_ends_at) > now);
+  const groups = [["Waiting for you", r => kind(r) === "ask"], ["Can undo", canUndo], ["Done — can't undo", r => ["pay", "hold", "done"].includes(kind(r)) && !canUndo(r)], ["Declined", r => ["decline", "block"].includes(kind(r))]];
+  let html = "";
+  if (!rows.length) html = `<div class="empty"><div class="ill"><i></i><i></i><i></i></div><b>No purchases yet</b>When an agent tries to buy something, it lands here the moment the wallet decides.<br><a class="btn" href="/agents">Go to Agents <span class="kbd">2</span></a></div>`;
+  groups.forEach(([t, f]) => { const g = rows.filter(f);
+    if (!g.length) { if (rows.length && t === "Done — can't undo") html += `<div class="grp"><h5>${t}<span class="n">0</span></h5><div class="list"><div class="mem"><span class="t dim" style="font-weight:400">Nothing final yet. Charges move here when their undo window closes.</span></div></div></div>`; return; }
+    html += `<div class="grp"><h5>${t}<span class="n">${g.length}</span></h5><div class="list">${g.map(r => rowHTML(r, !firstRows && !S.seenRows.has(r.id))).join("")}</div></div>`; });
+  $("#activity").innerHTML = html;
+  rows.forEach(r => S.seenRows.add(r.id));
+}
+function rowHTML(r, isNew) {
+  const k = kind(r), it = item0(r), amt = amountOf(r), facts = r.facts_used || (S.audit || {}).facts;
+  return `<div class="row k-${k} ${isNew ? "newr" : ""}" data-row="${esc(r.id)}">${it.image ? `<img src="${esc(it.image)}" alt="">` : `<div></div>`}
+    <div><div class="ti">${esc(r.merchant_name || r.merchant_id)} <span class="dim" style="font-weight:400">· ${esc(it.title || "")}</span></div><div class="ss">${esc(rowSub(r, facts))}</div>
+    ${k === "ask" ? `<div class="acts"><button class="btn primary" data-decide="1" data-id="${esc(r.id)}">Approve ${gbp(amt)}</button><button class="btn" data-decide="0" data-id="${esc(r.id)}">Decline</button></div>` : ""}</div>
+    <div class="rt"><div class="am ${k === "decline" || k === "block" || k === "done" ? "strike" : ""}">${gbp(amt)}</div><span class="pill ${k}">${{pay: "Paid", hold: "Held", ask: "Your OK", decline: "Declined", block: "Blocked", done: /refund/.test(r.stripe_status) ? "Refunded" : "Cancelled", run: "…"}[k]}</span></div></div>`;
 }
 
-/* ---------- merchants ---------- */
-const AV_GRADS = [["#5b4cf5", "#8f7dff"], ["#0c9f62", "#3ccf8e"], ["#e2553f", "#ff8a65"], ["#1f6feb", "#5ea2ff"], ["#b0428f", "#e070bd"], ["#c47f00", "#f2b33d"], ["#2b2b33", "#5a5a68"], ["#00838f", "#3fc1c9"]];
-const AV_FIXED = { E: ["#3a1d1d", "#7a2e2e"], shady: ["#3a1d1d", "#7a2e2e"] };
-function hash(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
-function mName(r) { return r?.merchant_name || r?.merchant_id || "Unknown shop"; }
-function initials(name) {
-  const w = String(name).replace(/[^A-Za-z0-9& ]/g, " ").split(/\s+/).filter((x) => x && x !== "&");
-  return ((w[0]?.[0] || "?") + (w[1]?.[0] || "")).toUpperCase();
-}
-const AV_INITIALS = { A: "DC", B: "ST", C: "OF", D: "SF", E: "SD", northside: "ND", coastline: "CO" };
-function avatar(id, name, cls = "") {
-  const g = AV_FIXED[id] || AV_FIXED[(name || "").toLowerCase().includes("shady") ? "shady" : ""] || AV_GRADS[hash(id || name) % AV_GRADS.length];
-  return `<div class="av ${cls}" style="background:linear-gradient(135deg,${g[0]},${g[1]})">${esc(AV_INITIALS[id] || initials(name || id))}</div>`;
-}
-
-/* ---------- money / time ---------- */
-const total = (r) => (r?.items || []).reduce((s, i) => s + (Number(i?.price_pence) || 0), 0);
-const gbp = (p) => "£" + (Number(p || 0) / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-function gbpSplit(p) { const s = gbp(p); const i = s.lastIndexOf("."); return `${s.slice(0, i)}<span class="p">${s.slice(i)}</span>`; }
-const gbpShort = (p) => { const v = Number(p || 0) / 100; return "£" + (Number.isInteger(v) ? v : v.toFixed(2)); };
-const ts = (s) => { const d = s ? new Date(s) : null; return d && !isNaN(d) ? d : null; };
-function fmtDate(s) { const d = ts(s); return d ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""; }
-function fmtWhen(s) {
-  const d = ts(s); if (!d) return "";
-  const now = new Date(); const t = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  if (d.toDateString() === now.toDateString()) return `Today, ${t}`;
-  const y = new Date(now); y.setDate(now.getDate() - 1);
-  if (d.toDateString() === y.toDateString()) return `Yesterday, ${t}`;
-  return `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${t}`;
-}
-// same wording as chat: "today at 19:18" / "yesterday at 19:18" / "15 Oct"
-function fmtRel(s) {
-  const d = ts(s); if (!d) return "";
-  const now = new Date(); const t = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  if (d.toDateString() === now.toDateString()) return `today at ${t}`;
-  const y = new Date(now); y.setDate(now.getDate() - 1);
-  if (d.toDateString() === y.toDateString()) return `yesterday at ${t}`;
-  return "on " + d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
-const capFirst = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
-function fmtShort(s) {
-  const d = ts(s); if (!d) return "";
-  if (d.toDateString() === new Date().toDateString()) return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
-function windowText(h) {
-  h = Number(h || 0);
-  if (h <= 0) return "Final sale — no returns";
-  if (h % 24 === 0) return `Free cancellation for ${h / 24} day${h === 24 ? "" : "s"}`;
-  return `Free cancellation for ${h} hours`;
-}
-function left(ms) {
-  if (ms <= 0) return { short: "0", long: "Window closed" };
-  const s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-  if (d >= 1) return { short: `${d}d`, long: `${d}d ${h}h left to undo` };
-  if (h >= 1) return { short: `${h}h`, long: `${h}h ${String(m).padStart(2, "0")}m left to undo` };
-  return { short: `${m}m`, long: `${m}:${String(sec).padStart(2, "0")} left to undo` };
-}
-
-/* ---------- facts ---------- */
-function factMap(facts) { const m = {}; for (const f of facts || []) if (f?.relation) m[f.relation] = String(f.object ?? ""); return m; }
-const FACT_LABEL = {
-  waist_size: { k: "Waist", v: (o) => `${o} inch`, icon: I.ruler, chip: (o) => `Waist ${o}` },
-  prefers_fit: { k: "Fit", v: (o) => `${cap(o)} fit`, icon: I.fit, chip: (o) => `${cap(o)} fit` },
-  avoids_material: { k: "Avoids", v: (o) => cap(o), icon: I.leaf, chip: (o) => `No ${o}` },
-};
-const factChip = (f) => (FACT_LABEL[f.relation]?.chip || ((o) => `${f.relation.replace(/_/g, " ")}: ${o}`))(f.object);
-
-/* ---------- classify ---------- */
-const DEAD = new Set(["canceled", "refunded"]);
-function status(r, now = Date.now()) {
-  const d = r?.decision;
-  if (d === "ask") return "waiting";
-  if (d === "block") return "blocked";
-  if (d === "decline") return r?.rule === "rejected by user" ? "rejected" : "declined";
-  if (d === "pay") {
-    const st = r?.stripe_status;
-    if (st === "canceled") return "cancelled";
-    if (st === "refunded") return "refunded";
-    const end = ts(r?.window_ends_at);
-    if (end && end.getTime() > now && Number(r?.undo?.window_hours) > 0) return "undoable";
-    if (!end || Number(r?.undo?.window_hours) <= 0) return "final";
-    return "closed";
-  }
-  return "pending";
-}
-const GROUP_OF = { undoable: "undo", final: "done", closed: "done", cancelled: "done", refunded: "done", rejected: "done", declined: "declined", blocked: "blocked" };
-
-function chipFor(r, st) {
-  const inj = (r?.p_injection ?? 0) >= 0.8;
-  switch (st) {
-    case "undoable": return r?.payment_mode === "hold" ? `<span class="chip c-blue">On hold</span>` : `<span class="chip c-green">Paid</span>`;
-    case "final": return `<span class="chip c-grey">Final sale</span>`;
-    case "closed": return `<span class="chip c-green">Paid</span>`;
-    case "cancelled": return `<span class="chip c-grey">Cancelled</span>`;
-    case "refunded": return `<span class="chip c-grey">Refunded</span>`;
-    case "rejected": return `<span class="chip c-grey">You declined</span>`;
-    case "declined": return inj ? `<span class="chip c-red">${I.shield}Injection</span>` : `<span class="chip c-amber">Not a match</span>`;
-    case "blocked": return `<span class="chip c-red">${I.ban}Blocked</span>`;
-    case "waiting": return `<span class="chip c-amber">Needs you</span>`;
-    default: return `<span class="chip c-grey">Checking…</span>`;
-  }
-}
-
-/* mismatch analysis: what the cart has vs what you asked for */
-const KIND_WORDS = ["jeans", "shorts", "chinos", "trousers", "jacket", "shirt", "t-shirt", "hoodie", "dress", "skirt"];
-const COLOUR_WORDS = Object.keys(COLOURS);
-function analyse(r, facts) {
-  const fm = factMap(r?.facts_used?.length ? r.facts_used : facts);
-  const req = (r?.request || "").toLowerCase();
-  const out = [];
-  for (const it of r?.items || []) {
-    const kind = itemKind(it);
-    const askedKind = KIND_WORDS.find((k) => new RegExp(`\\b${k}\\b`).test(req));
-    if (askedKind) out.push({ ok: askedKind === kind || (askedKind === "jeans" && kind === "jeans"), t: askedKind === kind ? cap(kind) : `${cap(kind)}, not ${askedKind}` });
-    const askedCol = COLOUR_WORDS.find((c) => new RegExp(`\\b${c}\\b`).test(req));
-    if (askedCol && it?.colour) out.push({ ok: it.colour.toLowerCase() === askedCol, t: it.colour.toLowerCase() === askedCol ? cap(it.colour) : `${cap(it.colour)}, not ${askedCol}` });
-    if (fm.waist_size && it?.waist != null) out.push({ ok: String(it.waist) === fm.waist_size, t: String(it.waist) === fm.waist_size ? `Waist ${it.waist}` : `Waist ${it.waist} — you're a ${fm.waist_size}` });
-    if (fm.avoids_material && it?.material) {
-      const bad = it.material.toLowerCase().includes(fm.avoids_material.toLowerCase());
-      out.push({ ok: !bad, t: bad ? `${it.material} — you avoid ${fm.avoids_material}` : cap(it.material) });
-    }
-    if (fm.prefers_fit && it?.name) {
-      const has = it.name.toLowerCase().includes(fm.prefers_fit.toLowerCase());
-      if (has) out.push({ ok: true, t: `${cap(fm.prefers_fit)} fit` });
-    }
-  }
-  if (r?.max_pence && total(r) > r.max_pence) out.push({ ok: false, t: `${gbp(total(r))} is over your ${gbpShort(r.max_pence)} limit` });
-  return out;
-}
-
-/* plain-English why */
-function why(r, st, blockedMap) {
-  const pm = r?.p_match, pct = pm == null ? null : Math.round(pm * 100);
-  const rule = r?.rule || "";
-  const it = (r?.items || [])[0] || {};
-  const bad = analyse(r, STATE.facts).filter((x) => !x.ok).map((x) => x.t);
-  switch (st) {
-    case "blocked": {
-      const ev = blockedMap[r?.merchant_id];
-      const d = ev?.at ? fmtRel(ev.at) : "";
-      return { short: `Blocked on past record: flagged for injection${d ? ` ${d}` : ""}`, long: `Blocked on past record, not this cart. ${esc(mName(r))} was caught hiding instructions for your agent${d ? ` ${d}` : ""}. Your wallet stopped this before even looking at the cart.`, sub: "This cart might have been fine. A shop that tried to trick your agent once doesn't get a second chance." };
-    }
-    case "declined": {
-      if ((r?.p_injection ?? 0) >= 0.8) {
-        const note = (r?.items || []).map((i) => i?.description).find(Boolean);
-        return { short: `Hidden instructions aimed at your agent`, long: `This listing tried to talk to your agent${note ? `: <b>“${esc(note)}”</b>` : ""}.`, sub: `Your wallet blocked ${esc(mName(r))} for good and paid nothing.` };
-      }
-      if (rule.startsWith("check failed")) {
-        const f = r?.check_failure || rule.replace("check failed: ", "");
-        if (/cap|£/.test(f)) return { short: "Over your spending limit", long: `This cart is over the limit you signed.`, sub: esc(f) };
-        if (/signature/.test(f)) return { short: "Couldn't verify the shop", long: "The shop's signature on this cart didn't check out, so nothing was paid.", sub: esc(f) };
-        if (/expired/.test(f)) return { short: "Offer expired", long: "This cart or your request had expired by the time the agent tried to pay.", sub: esc(f) };
-        if (/intent_hash/.test(f)) return { short: "Cart wasn't for this request", long: "The shop signed this cart for a different request than the one you signed.", sub: esc(f) };
-        return { short: cap(f), long: cap(esc(f)), sub: "" };
-      }
-      if (rule.startsWith("evaluator unavailable") || rule.includes("payment failed")) return { short: "Couldn't check this cart", long: "Your wallet couldn't check this cart, so it didn't pay.", sub: esc(rule) };
-      const head = bad.length ? bad.slice(0, 2).join(" · ") : `Only ${pct}% likely to be what you asked for`;
-      return { short: head, long: `Not what you asked for${bad.length ? `: <b>${esc(bad.join(", "))}</b>` : ""}.`, sub: pct != null ? `Your wallet was only ${pct}% sure this matched “${esc(r?.request || "your request")}”, so it didn't pay.` : "" };
-    }
-    case "waiting": {
-      const finalSale = Number(r?.undo?.window_hours || 0) <= 0;
-      return { short: `${pct}% match · ${gbp(r?.expected_loss_pence)} at risk`, long: `${finalSale ? "<b>Final sale — can't be undone.</b> " : ""}Your wallet is <b>${pct}% sure</b> this is right${bad.length ? `, but it's <b>${esc(bad.join(", ").toLowerCase())}</b>` : ""}. That puts <b>${gbp(r?.expected_loss_pence)}</b> at risk, more than it will spend without asking.`, sub: "" };
-    }
-    case "undoable": return { short: `${pct != null ? pct + "% match · " : ""}${windowText(r?.undo?.window_hours).replace("Free cancellation", "Free undo")}`, long: r?.rule === "approved by user" ? "You approved this one." : `Your wallet was ${pct}% sure this matched, and it can be undone for free, so nothing was at risk.`, sub: "" };
-    case "final": return { short: r?.rule === "approved by user" ? "You approved · final sale" : "Final sale — can't be undone", long: r?.rule === "approved by user" ? "You approved this final-sale purchase." : `Paid. This shop doesn't take cancellations.`, sub: "" };
-    case "closed": return { short: "Undo window closed", long: "The free cancellation window has closed.", sub: "" };
-    case "cancelled": return { short: "Undone — hold released", long: "You undid this. The card hold was released, so nothing left your account.", sub: "" };
-    case "refunded": return { short: "Undone — refunded in full", long: "You undid this and got a full refund.", sub: "" };
-    case "rejected": return { short: "You declined this", long: "You said no, so your wallet didn't pay.", sub: "" };
-    default: return { short: rule || "Checking…", long: esc(rule), sub: "" };
-  }
-}
-
-/* ---------- state ---------- */
-const STATE = { data: null, raw: "", facts: [], firstLoad: true, seen: new Set(), openId: null, sheetMode: null, busy: new Set() };
-
-/* keyed patch: only touches rows whose HTML changed */
-function patch(container, items, wrapTag = "div") {
-  const existing = new Map();
-  for (const el of Array.from(container.children)) if (el.dataset.key) existing.set(el.dataset.key, el);
-  let prev = null;
-  const keep = new Set();
-  for (const { key, html, cls, enter } of items) {
-    keep.add(key);
-    let el = existing.get(key);
-    if (!el || el._cls !== cls) {
-      const n = document.createElement(wrapTag);
-      n.dataset.key = key; n.className = cls; n._cls = cls; n.innerHTML = html; n._html = html;
-      if (enter) n.classList.add("enter");
-      if (el) el.replaceWith(n);
-      el = n;
-    } else if (el._html !== html) {
-      el.innerHTML = html; el._html = html;
-    }
-    const want = prev ? prev.nextSibling : container.firstChild;
-    if (want !== el) container.insertBefore(el, want);
-    prev = el;
-  }
-  for (const [k, el] of existing) if (!keep.has(k)) el.remove();
-  for (const el of Array.from(container.children)) if (!el.dataset.key) el.remove();
-}
-function setHTML(el, html) { if (el._html !== html) { el.innerHTML = html; el._html = html; } }
-
-/* ---------- renderers ---------- */
-function ringHTML(r) {
-  return `<div class="ring" data-ring="${esc(r.id)}"><svg viewBox="0 0 40 40"><circle class="trk" cx="20" cy="20" r="16" fill="none" stroke-width="3.5"/><circle class="val" cx="20" cy="20" r="16" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="100.53" stroke-dashoffset="0"/></svg><span></span></div>`;
-}
-function rowHTML(r, st, blockedMap) {
-  const w = why(r, st, blockedMap);
-  const amtCls = ["cancelled", "refunded"].includes(st) ? "strike" : ["declined", "blocked", "rejected"].includes(st) ? "muted" : "";
-  const it = (r.items || [])[0];
-  const itemName = it ? cap(it.name || itemKind(it)) : "Cart";
-  const dim = ["declined", "blocked", "rejected", "cancelled", "refunded"].includes(st) ? " dim" : "";
-  let right;
-  if (st === "undoable") {
-    right = `<div class="r-right h">${ringHTML(r)}<button class="undo-btn" data-undo="${esc(r.payment_id)}">${STATE.busy.has(r.payment_id) ? '<span class="spin"></span>' : "Undo"}</button></div>`;
-  } else {
-    right = `<div class="r-right"><div class="amt ${amtCls}">${gbp(total(r))}</div>${chipFor(r, st)}</div>`;
-  }
-  const amtLine = st === "undoable" ? `<span class="num" style="color:var(--text);font-weight:650">${gbp(total(r))}</span> · ` : "";
-  const sub = st === "undoable" ? `${amtLine}<span data-left="${esc(r.id)}" data-compact="1"></span>` : `${esc(itemName)} · ${esc(fmtShort(r.at))}`;
-  return `<div class="thumb${dim}"><div class="ph">${productArt(it)}</div>${avatar(r.merchant_id, mName(r))}</div>
-    <div class="r-main"><div class="r-title">${esc(mName(r))}</div><div class="r-sub">${sub}</div><div class="r-why">${w.short.includes("<") ? w.short : esc(w.short)}</div></div>
-    ${right}`;
-}
-function askHTML(r) {
-  const w = why(r, "waiting", {});
-  const it = (r.items || [])[0];
-  const busy = STATE.busy.has(r.id);
-  return `<div class="big">${productArt(it)}${avatar(r.merchant_id, mName(r))}</div>
-    <div style="min-width:0;align-self:center">
-      <div class="ask-top"><div style="min-width:0"><div class="r-title">${esc(mName(r))}</div><div class="r-sub">${esc(cap(it?.name || "Cart"))}${it?.waist ? ` · W${esc(it.waist)}` : ""} · ${esc(fmtShort(r.at))}</div></div><div class="amt">${gbp(total(r))}</div></div>
-    </div>
-    <div class="ask-why">${w.long}</div>
-    <div class="ask-acts">
-      <button class="btn btn-primary" data-approve="${esc(r.id)}" ${busy ? "disabled" : ""}>${busy ? '<span class="spin"></span>' : I.check.replace("<svg", '<svg width="16" height="16"')}Approve<span class="lbl-lg" style="margin-left:-4px">${gbp(total(r))}</span></button>
-      <button class="btn btn-ghost" data-decline="${esc(r.id)}" ${busy ? "disabled" : ""}>Decline</button>
-    </div>`;
-}
-
-function renderHero(rows) {
-  const now = new Date();
-  const weekAgo = now.getTime() - 7 * 864e5;
-  const spent = rows.filter((r) => r.decision === "pay" && !DEAD.has(r.stripe_status) && (ts(r.at)?.getTime() || 0) >= weekAgo);
-  const sum = spent.reduce((s, r) => s + total(r), 0);
-  const held = spent.filter((r) => r.stripe_status === "requires_capture").reduce((s, r) => s + total(r), 0);
-  setHTML($("balance"), gbpSplit(sum));
-  const n = spent.length;
-  const saved = rows.filter((r) => ["decline", "block"].includes(r.decision) && r.rule !== "rejected by user").reduce((s, r) => s + total(r), 0);
-  setHTML($("balanceSub"), n ? `${n} purchase${n === 1 ? "" : "s"}${held ? ` · ${gbp(held)} on hold` : ""}` : saved ? `<span style="color:var(--green);font-weight:600">${gbp(saved)} stopped</span> by your wallet` : "Nothing spent yet");
-  // 7-day bars, Mon..Sun of the current week window ending today
-  const days = [];
-  for (let i = 6; i >= 0; i--) { const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i); days.push(d); }
-  const per = days.map((d) => spent.filter((r) => { const t = ts(r.at); return t && t.toDateString() === d.toDateString(); }).reduce((s, r) => s + total(r), 0));
-  const max = Math.max(...per, 1);
-  setHTML($("bars"), days.map((d, i) => `<div class="bar${per[i] ? " on" : ""}${i === 6 ? " today" : ""}" title="${gbp(per[i])}"><b style="height:${per[i] ? Math.max(14, (per[i] / max) * 44) : 4}px"></b><span>${d.toLocaleDateString("en-GB", { weekday: "narrow" })}</span></div>`).join(""));
-  const counts = { waiting: 0, undo: 0, declined: 0, blocked: 0 };
-  for (const r of rows) { const st = status(r); if (st === "waiting") counts.waiting++; else if (st === "undoable") counts.undo++; else if (st === "declined") counts.declined++; else if (st === "blocked") counts.blocked++; }
-  setHTML($("quick"), [
-    counts.waiting && `<span class="qchip"><i style="background:var(--amber)"></i><b>${counts.waiting}</b> waiting for you</span>`,
-    counts.undo && `<span class="qchip"><i style="background:var(--blue)"></i><b>${counts.undo}</b> can undo</span>`,
-    (counts.declined + counts.blocked) && `<span class="qchip"><i style="background:var(--red)"></i><b>${counts.declined + counts.blocked}</b> stopped</span>`,
-  ].filter(Boolean).join("") || `<span class="qchip">${I.shield.replace("<svg", '<svg width="14" height="14"')}Every cart checked against what you signed</span>`);
-}
-
-function renderMandate(d) {
-  const p = d?.intent?.payload;
-  if (!p) {
-    setHTML($("mandate"), `<h3>Current request</h3><p class="lede">Nothing signed yet. Sign a request and your agent can start shopping.</p><button class="btn btn-primary" data-open-sign>Sign a request</button>`);
-    return;
-  }
-  const exp = ts(p.expires_at);
-  const expTxt = exp ? (exp.getTime() > Date.now() ? `in ${Math.max(1, Math.round((exp - Date.now()) / 36e5))}h` : "expired") : "—";
-  setHTML($("mandate"), `<div style="display:flex;align-items:center;gap:8px"><h3>You asked your agent for</h3><span class="chip c-green" style="margin-left:auto">${I.check}Signed</span></div>
-    <div class="mandate-q">${esc(p.request)}</div>
-    <div class="kv"><span>Spending limit</span><b class="num">${gbp(p.max_pence)}</b></div>
-    <div class="kv"><span>Expires</span><b>${esc(expTxt)}</b></div>
-    <div class="kv"><span>Fingerprint</span><b class="mono">${esc((d.intent_hash || "").slice(0, 8))}…${esc((d.intent_hash || "").slice(-6))}</b></div>
-    <div class="sigline">${I.key}Signed with your key · Ed25519 <button class="ext" data-open-sign style="margin-left:auto;color:var(--accent);font-weight:650;font-size:12.5px">New request</button></div>`);
-}
-
-function renderMemories(facts) {
-  if (!facts?.length) { setHTML($("memories"), `<div class="empty" style="padding:12px 0"><b>Nothing yet</b>Your wallet hasn't loaded your signed facts.</div>`); return; }
-  const order = ["waist_size", "prefers_fit", "avoids_material"];
-  const sorted = [...facts].sort((a, b) => (order.indexOf(a.relation) + 1 || 9) - (order.indexOf(b.relation) + 1 || 9));
-  const signedAt = sorted.map((f) => f.signed_at).filter(Boolean).sort()[0];
-  setHTML($("memories"), sorted.map((f) => {
-    const L = FACT_LABEL[f.relation] || { k: f.relation.replace(/_/g, " "), v: (o) => o, icon: I.key };
-    const ok = f.verified !== false;
-    return `<div class="mem"><div class="mem-ic">${L.icon}</div><div><div class="mem-k">${esc(L.k)}</div><div class="mem-v">${esc(L.v(f.object))}</div></div>${ok ? `<span class="chip c-green">${I.check}Verified</span>` : `<span class="chip c-red">${I.x}Bad signature</span>`}</div>`;
-  }).join("") + `<div class="sigline">${I.shield}Signed by you${signedAt ? ` on ${esc(fmtDate(signedAt))}` : ""} · checked on every cart</div>`);
-}
-
-function renderBlocked(list) {
-  if (!list?.length) { setHTML($("blocked"), `<div class="empty" style="padding:10px 0 4px"><b>No blocked shops</b>Shops that try to trick your agent end up here.</div>`); return; }
-  setHTML($("blocked"), list.map((b) => {
-    const items = b?.signed_cart?.payload?.items || [];
-    const note = items.map((i) => i?.description).find(Boolean);
-    const name = b.merchant_name || b.merchant_id;
-    const sig = b?.signed_cart?.signature || "";
-    return `<div class="blk"><div class="blk-h">${avatar(b.merchant_id, name, "md")}<div style="min-width:0"><div class="blk-name">${esc(name)}</div><div class="blk-sub">Flagged for prompt injection${b.at ? ` ${esc(fmtRel(b.at))}` : ""}</div></div><span class="chip c-red" style="margin-left:auto">${I.ban}Blocked</span></div>
-      <details><summary>${I.chev}Evidence</summary><div class="evidence">
-        <div style="font-weight:600">Hidden in their signed listing:</div>
-        ${note ? `<div class="quote">“${esc(note)}”</div>` : ""}
-        <div class="kv"><span>Injection likelihood</span><b class="num">${b.p_injection != null ? Math.round(b.p_injection * 100) + "%" : "—"}</b></div>
-        ${items[0] ? `<div class="kv"><span>Cart</span><b>${esc(cap(items[0].name))} · ${gbp(items[0].price_pence)}</b></div>` : ""}
-        <div class="kv"><span>Flagged</span><b>${esc(capFirst(fmtRel(b.at)))}</b></div>
-        ${sig ? `<div class="mono sig">sig ${esc(sig.slice(0, 44))}…</div>` : ""}
-        <div class="meter-cap" style="margin-top:8px">The shop signed this cart itself, so it can't deny sending it.</div>
-      </div></details></div>`;
-  }).join(""));
-}
-
-function renderFeed(rows, blockedMap) {
-  const waiting = rows.filter((r) => status(r) === "waiting").sort((a, b) => (b.at || "").localeCompare(a.at || ""));
-  $("waitingSec").hidden = !waiting.length;
-  $("waitingCount").textContent = waiting.length ? String(waiting.length) : "";
-  patch($("waiting"), waiting.map((r) => ({ key: r.id, cls: "ask", html: askHTML(r), enter: !STATE.firstLoad && !STATE.seen.has(r.id) })));
-
-  const groups = { undo: [], done: [], declined: [], blocked: [] };
-  for (const r of rows) { const st = status(r); const g = GROUP_OF[st]; if (g) groups[g].push([r, st]); }
-  for (const g of Object.values(groups)) g.sort((a, b) => (b[0].at || "").localeCompare(a[0].at || ""));
-  const META = {
-    undo: { t: "Can undo", c: "var(--blue)" },
-    done: { t: "Done — can't undo", c: "var(--text-3)" },
-    declined: { t: "Declined by your wallet", c: "var(--amber)" },
-    blocked: { t: "Blocked merchants", c: "var(--red)" },
-  };
-  const n = Object.values(groups).reduce((s, g) => s + g.length, 0);
-  $("actCount").textContent = n ? String(n) : "";
-  const act = $("activity");
-  if (!n) { setHTML(act, `<div class="empty"><b>No activity yet</b>When your agent tries to buy something, it shows up here.</div>`); act._groups = null; return; }
-  if (!act._groups) { act.innerHTML = ""; act._html = null; act._groups = {}; }
-  const items = [];
-  for (const [k, list] of Object.entries(groups)) {
-    if (!list.length) continue;
-    items.push({ key: "g-" + k, cls: "group", html: null, list, k });
-  }
-  // patch groups, then rows within each group
-  patch(act, items.map((g) => ({ key: g.key, cls: "group", html: `<div class="group-h"><span class="dot" style="background:${META[g.k].c}"></span>${META[g.k].t}<span class="n">${g.list.length}</span></div><div class="g-rows"></div>`.replace(/<span class="n">\d+<\/span>/, '<span class="n"></span>') })));
-  for (const g of items) {
-    const el = act.querySelector(`[data-key="g-${g.k}"]`);
-    el.querySelector(".n").textContent = String(g.list.length);
-    patch(el.querySelector(".g-rows"), g.list.map(([r, st]) => ({ key: r.id, cls: "row", html: rowHTML(r, st, blockedMap), enter: !STATE.firstLoad && !STATE.seen.has(r.id) })), "div");
-  }
-}
-
-/* ---------- detail sheet ---------- */
-function meter(label, v, color, mark, cap) {
+/* ---------------- detail sheet ---------------- */
+function mbar(label, v, thr, colour, capText) {
   if (v == null) return "";
-  const pct = Math.round(v * 100);
-  return `<div class="meter"><div class="meter-top"><span>${label}</span><span>${pct}%</span></div><div class="meter-track"><div class="meter-fill" style="width:${pct}%;background:${color}"></div>${mark != null ? `<div class="meter-mark" style="left:calc(${mark * 100}% - 1px)"></div>` : ""}</div>${cap ? `<div class="meter-cap">${cap}</div>` : ""}</div>`;
+  return `<div class="mbar"><div class="mtop"><span>${label}</span><b>${pct(v)}</b></div><div class="tr"><i style="width:${v * 100}%;background:${colour}"></i>${thr == null ? "" : `<u style="left:calc(${thr * 100}% - 1px)"></u>`}</div><div class="cap">${capText}</div></div>`;
 }
-function mdLite(s) {
-  const lines = String(s || "").split(/\n/);
-  let html = "", list = null;
-  const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`(.+?)`/g, "<code>$1</code>");
-  const close = () => { if (list) { html += `</${list}>`; list = null; } };
-  for (const raw of lines) {
-    const l = raw.trim();
-    if (!l) { close(); continue; }
-    let m;
-    if ((m = l.match(/^#{1,6}\s+(.*)/))) { close(); html += `<h5>${inline(m[1])}</h5>`; }
-    else if ((m = l.match(/^[-*]\s+(.*)/))) { if (list !== "ul") { close(); html += "<ul>"; list = "ul"; } html += `<li>${inline(m[1])}</li>`; }
-    else if ((m = l.match(/^\d+[.)]\s+(.*)/))) { if (list !== "ol") { close(); html += "<ol>"; list = "ol"; } html += `<li>${inline(m[1])}</li>`; }
-    else { close(); html += `<p>${inline(l)}</p>`; }
-  }
-  close();
-  return html;
+function explanationFor(r) {
+  const A = S.audit || {};
+  return (A.explanations || {})[r.intent_hash] || (A.explanations || {})[r.request] || r.explanation || (A.intent_hash === r.intent_hash ? A.explanation : null) || null;
 }
-function detailHTML(r, d) {
-  const blockedMap = Object.fromEntries((d.blocklist || []).map((b) => [b.merchant_id, b]));
-  const st = status(r);
-  const w = why(r, st, blockedMap);
-  const it = (r.items || [])[0] || {};
-  const amtCls = ["cancelled", "refunded"].includes(st) ? " strike" : ["declined", "blocked", "rejected"].includes(st) ? " muted" : "";
-  const checks = analyse(r, d.facts);
-  const injected = (r.p_injection ?? 0) >= 0.8;
-  const intent = (d.intent_hash === r.intent_hash && d.intent) ? d.intent : null;
-  const expl = (d.explanations || {})[r.intent_hash] || (d.intent_hash === r.intent_hash ? d.explanation : null);
-  const window = Number(r?.undo?.window_hours || 0);
-  let acts = "";
-  if (st === "undoable") acts = `<button class="btn btn-blue" data-undo="${esc(r.payment_id)}">${I.undo.replace("<svg", '<svg width="16" height="16"')}Undo this purchase</button>`;
-  if (st === "waiting") acts = `<button class="btn btn-primary" data-approve="${esc(r.id)}">Approve ${gbp(total(r))}</button><button class="btn btn-ghost" data-decline="${esc(r.id)}">Decline</button>`;
-  const head = `<div class="d-head">
-      <div class="d-thumb">${productArt(it)}</div>
-      <div class="d-merchant">${avatar(r.merchant_id, mName(r))}${esc(mName(r))}</div>
-      <div class="d-amt${amtCls}">${gbpSplit(total(r))}</div>
-      ${chipFor(r, st)}
-      <div class="d-when">${esc(cap(it.name || "Cart"))}${it.waist ? ` · W${esc(it.waist)}` : ""}${it.material ? ` · ${esc(it.material)}` : ""} · ${esc(fmtWhen(r.at))}</div>
-      ${st === "undoable" ? `<div class="d-when" style="color:var(--blue);font-weight:650" data-left="${esc(r.id)}"></div>` : ""}
-      ${acts ? `<div class="d-acts">${acts}</div>` : ""}
-    </div>`;
-  const verdict = `<div class="d-card"><h4>Why${injected ? `<span class="chip c-red">${I.shield}Prompt injection</span>` : ""}</h4><div class="verdict">${w.long}${w.sub ? `<small>${w.sub}</small>` : ""}</div></div>`;
-  const compare = (r.items || []).length && st !== "blocked" ? `<div class="d-card"><h4>You asked vs. the cart</h4><div class="compare">
-      <div class="cmp"><div class="cmp-h">You asked</div><div class="cmp-q">“${esc(r.request || "—")}”</div>
-        <ul class="checks">${(r.facts_used || []).map((f) => `<li><span class="ok">${I.key}</span>${esc(factChip(f))}</li>`).join("")}${r.max_pence ? `<li><span class="ok">${I.key}</span>Up to ${gbp(r.max_pence)}</li>` : ""}</ul></div>
-      <div class="cmp"><div class="cmp-h">In the cart</div><div class="cmp-pic">${productArt(it)}</div><div class="cmp-q">${esc(cap(it.name || ""))}</div>
-        <ul class="checks">${checks.map((c) => `<li><span class="${c.ok ? "ok" : "no"}">${c.ok ? I.check : I.x}</span><span class="${c.ok ? "" : "no-t"}">${esc(c.t)}</span></li>`).join("")}</ul>
-        ${(r.items || []).map((i) => i?.description).filter(Boolean).map((n) => `<div class="quote">“${esc(n)}”</div>`).join("")}</div>
-    </div></div>` : "";
-  const blockedEv = st === "blocked" && blockedMap[r.merchant_id] ? (() => {
-    const b = blockedMap[r.merchant_id]; const note = (b.signed_cart?.payload?.items || []).map((i) => i?.description).find(Boolean);
-    return `<div class="d-card"><h4>The record</h4><dl class="dl"><dt>Flagged</dt><dd>${esc(capFirst(fmtRel(b.at)))}</dd><dt>Injection likelihood</dt><dd class="num">${b.p_injection != null ? Math.round(b.p_injection * 100) + "%" : "—"}</dd></dl>${note ? `<div class="quote">Hidden in their signed cart: “${esc(note)}”</div>` : ""}<div class="meter-cap">Remembered in your wallet's memory graph (Cognee). This cart was never sent for checking.</div></div>`;
-  })() : "";
-  const scores = r.p_match != null || r.p_injection != null ? `<div class="d-card"><h4>The wallet's check${r.eval_source ? `<span class="chip c-violet">${esc(r.eval_source === "jev" ? "Jev" : cap(r.eval_source))}</span>` : ""}</h4>
-      ${meter("Matches what you asked", r.p_match, r.p_match >= 0.25 ? "var(--green)" : "var(--amber)", 0.25, "Below 25% the wallet won't pay")}
-      ${meter("Trying to trick your agent", r.p_injection, (r.p_injection ?? 0) >= 0.8 ? "var(--red)" : "var(--text-3)", 0.8, "Above 80% the shop is blocked")}
-    </div>` : "";
-  const money = `<div class="d-card"><h4>Money &amp; undo</h4><dl class="dl">
-      <dt>Undo terms</dt><dd>${esc(windowText(window))}${r?.undo?.fee_pence ? ` (${gbp(r.undo.fee_pence)} fee)` : ""}</dd>
-      ${r.undo_cost_pence != null ? `<dt>Cost to undo</dt><dd class="num">${gbp(r.undo_cost_pence)}</dd>` : ""}
-      ${r.expected_loss_pence != null ? `<dt>Expected loss</dt><dd class="num">${gbp(r.expected_loss_pence)} <span style="color:var(--text-3);font-weight:500">/ ${gbp(1000)} auto limit</span></dd>` : ""}
-      ${r.window_ends_at ? `<dt>Undo until</dt><dd>${esc(fmtWhen(r.window_ends_at))}</dd>` : ""}
-      ${r.payment_id ? `<dt>Stripe</dt><dd class="mono"><a class="ext" href="https://dashboard.stripe.com/test/payments/${esc(r.payment_id)}" target="_blank" rel="noopener">${esc(r.payment_id)}</a></dd>
-      <dt>Payment</dt><dd>${r.payment_mode === "hold" ? "Card hold (not captured)" : r.payment_mode === "charge" ? "Charged" : "—"} · <span class="mono">${esc(r.stripe_status || "—")}</span></dd>` : `<dt>Stripe</dt><dd>No payment made</dd>`}
-      <dt>Rule</dt><dd class="mono">${esc(r.rule || "—")}</dd>
-    </dl></div>`;
-  const signed = `<div class="d-card"><h4>Signed request<span class="chip ${r.signature_ok === false ? "c-red" : "c-green"}">${r.signature_ok === false ? I.x + "Failed" : I.check + "Verified"}</span></h4>
-      <div class="dl"><dt>Request</dt><dd>“${esc(r.request || "—")}”</dd>${r.max_pence ? `<dt>Limit</dt><dd class="num">${gbp(r.max_pence)}</dd>` : ""}<dt>Request hash</dt><dd class="mono">${esc((r.intent_hash || "").slice(0, 16))}…</dd>${r.check_failure ? `<dt>Check</dt><dd style="color:var(--red)">${esc(r.check_failure)}</dd>` : ""}</div>
-      ${intent?.signature ? `<div class="mono sig">sig ${esc(intent.signature)}</div>` : ""}
-    </div>`;
-  const facts = (r.facts_used || []).length ? `<div class="d-card"><h4>Signed facts used</h4><div class="factchips">${r.facts_used.map((f) => `<span class="fchip">${I.check}${esc(factChip(f))}</span>`).join("")}</div><div class="meter-cap" style="margin-top:8px">Signed by you, verified before the check. Shops and agents never see them.</div></div>` : "";
-  const cognee = expl?.answer ? `<div class="d-card"><h4>What your wallet remembered<span class="chip c-violet">Cognee</span></h4><div class="explain">${mdLite(expl.answer)}</div>${(expl.cited || []).length ? `<div class="edges">${expl.cited.map((c) => `<span class="edge">${esc(c.source || "")} → <b>${esc((c.relationship_name || "").replace(/_/g, " "))}</b> → ${esc(c.target || "")}</span>`).join("")}</div>` : ""}</div>` : "";
-  const raw = `<div class="d-card"><details class="raw"><summary>Raw audit record</summary><pre class="mono">${esc(JSON.stringify(r, null, 2))}</pre></details></div>`;
-  return head + verdict + blockedEv + compare + scores + money + facts + signed + cognee + raw;
+function signedIntentFor(r) {
+  const A = S.audit || {};
+  if (r.signed_intent) return r.signed_intent;
+  if (A.intent && (A.intent_hash === r.intent_hash || !r.intent_hash)) return A.intent;
+  return null;
 }
-
-function signHTML() {
-  const p = STATE.data?.intent?.payload;
-  return `<div style="padding:6px 2px 0">
-      <div class="d-merchant" style="margin-top:0;justify-content:flex-start;gap:10px"><div class="mem-ic">${I.key}</div><div><div style="font-size:19px;font-weight:720;letter-spacing:-.025em">Sign a request</div><div class="sub">Your agent can only buy what you sign here.</div></div></div>
-      <form id="signForm">
-        <div class="field"><label for="fReq">What should your agent buy?</label><input id="fReq" value="${esc(p?.request || "black jeans, under £80")}" autocomplete="off"></div>
-        <div class="field"><label for="fMax">Spending limit (£)</label><input id="fMax" type="number" min="1" step="1" value="${p?.max_pence ? Math.round(p.max_pence / 100) : 80}"></div>
-        <div class="d-acts" style="justify-content:flex-start;margin-top:16px"><button class="btn btn-primary" type="submit">${I.key.replace("<svg", '<svg width="16" height="16"')}Sign with your key</button></div>
-      </form>
-      <div class="token" id="tokenBox"><div class="field"><label>Token for your agent</label></div><div class="mono sig" id="tokenVal"></div><div class="d-acts" style="justify-content:flex-start"><button class="btn btn-ghost" id="copyTok">Copy token</button></div></div>
-    </div>`;
-}
-
-function openSheet(mode, id) {
-  STATE.sheetMode = mode; STATE.openId = id || null;
-  const body = $("sheetBody");
-  body._html = null;
-  if (mode === "sign") { body.innerHTML = signHTML(); body._html = "sign"; wireSign(); }
-  else renderSheet();
-  body.scrollTop = 0;
-  $("scrim").classList.add("open"); $("sheet").classList.add("open");
-  tick();
-}
-function closeSheet() { $("scrim").classList.remove("open"); $("sheet").classList.remove("open"); STATE.sheetMode = null; STATE.openId = null; }
 function renderSheet() {
-  if (STATE.sheetMode !== "row" || !STATE.data) return;
-  const r = (STATE.data.rows || []).find((x) => x.id === STATE.openId);
-  if (!r) return;
-  const html = detailHTML(r, STATE.data);
-  const body = $("sheetBody");
-  if (body._html !== html) {
-    const openDetails = Array.from(body.querySelectorAll("details")).map((d) => d.open);
-    const st = body.scrollTop; body.innerHTML = html; body._html = html; body.scrollTop = st;
-    body.querySelectorAll("details").forEach((d, i) => { if (openDetails[i]) d.open = true; });
+  const A = S.audit || {rows: []}, r = (A.rows || []).find(x => x.id === S.sheet); if (!r) return;
+  const k = kind(r), it = item0(r), amt = amountOf(r), blocked = r.decision === "block", inj = isInj(r);
+  const facts = (r.facts_used && r.facts_used.length) ? r.facts_used : A.facts || [];
+  const blockEntry = (A.blocklist || []).find(b => b.merchant_id === r.merchant_id);
+  const ex = explanationFor(r), si = signedIntentFor(r), sip = pl(si);
+  const G = graphModel(), total = r.facts_total || G.edges.length || (A.facts || []).length;
+  const acts = {pay: r.payment_id && (r.undo || {}).window_hours ? `<button class="btn" data-undo="${esc(r.payment_id)}">Cancel for free</button>` : "",
+    hold: `<button class="btn primary" data-close>Keep it</button><button class="btn" data-undo="${esc(r.payment_id)}">Release hold</button>`,
+    ask: `<button class="btn primary" data-decide="1" data-id="${esc(r.id)}">Approve ${gbp(amt)}</button><button class="btn" data-decide="0" data-id="${esc(r.id)}">Decline</button>`, decline: "", block: "", done: ""}[k] || "";
+  const lines = cartLines(it, r, facts), nbad = lines.filter(l => l[0] === "no").length;
+  const compare = blocked ? "" : `<div class="sec"><h4><span>You asked vs the cart</span><span>${nbad ? nbad + " mismatch" : "all match"}</span></h4><div class="cmp">
+      <div class="cmpc"><div class="h">You asked · signed</div><div class="q">“${esc(r.request || sip.request || "")}”</div>
+        ${(r.facts_used || []).map(f => `<div class="ln"><span class="s" style="color:var(--accent)">●</span>${esc(factText(f))}<span class="k">memory</span></div>`).join("")}
+        ${r.max_pence ? `<div class="ln"><span class="s" style="color:var(--accent)">●</span>Up to ${gbp(r.max_pence)}<span class="k">limit</span></div>` : ""}</div>
+      <div class="cmpc"><div class="h">In the signed cart · ${esc(r.merchant_name || r.merchant_id)}</div><div class="q">${esc(it.title || "")}</div>
+        ${lines.map(([st, t, kk]) => `<div class="ln ${st}"><span class="s ${st === "ok" ? "ok-t" : "bad-t"}">${st === "ok" ? "✓" : "✕"}</span>${esc(t)}<span class="k">${kk}</span></div>`).join("")}
+        ${(r.undo || {}).window_hours ? "" : `<div class="ln mid"><span class="s warn-t">!</span>Final sale — no undo<span class="k">undo</span></div>`}
+        ${injText(it) ? `<div class="ln no"><span class="s bad-t">✕</span>Hidden instruction aimed at your agent<span class="k">description</span></div><div class="sig" style="color:#ffb3b5;border-color:rgba(242,86,91,.35)">“${esc(it.description)}”</div>` : ""}</div>
+    </div></div>`;
+  let record = "";
+  if (blocked) {
+    const ev = blockEntry && pl(blockEntry.signed_cart), evIt = ev && (ev.items || [])[0], note = evIt && evIt.description;
+    record = `<div class="sec"><h4><span>The record</span><span>Cognee provider history</span></h4><dl class="kv"><dt>Flagged</dt><dd>${blockEntry && blockEntry.at ? new Date(blockEntry.at).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"}) : "earlier"} · prompt injection</dd>${blockEntry && blockEntry.p_injection != null ? `<dt>P(injection)</dt><dd class="bad-t">${pct(blockEntry.p_injection)}</dd>` : ""}<dt>Evidence</dt><dd>${ev ? `earlier signed cart from ${esc(blockEntry.merchant_name || r.merchant_id)}` : "provider history"}</dd></dl>
+      ${note ? `<div class="sig" style="color:#ffb3b5;border-color:rgba(242,86,91,.35)">Hidden in their signed cart: “${esc(note)}”</div>` : ""}
+      <div class="cap dim" style="font:13px var(--mono);margin-top:8px">This cart was never sent for checking — the blocklist stops it first.</div></div>`;
   }
+  const scores = blocked || (r.p_match == null && r.p_injection == null) ? "" : `<div class="sec"><h4><span>The wallet's check</span><span class="tagc">${esc(r.eval_source === "claude" ? "Claude" : "Jev")}</span></h4>
+      ${(r.undo || {}).window_hours ? mbar("Matches what you asked", r.p_match, null, r.p_match >= .8 ? "var(--ok)" : "var(--warn)", "P(match) · undoable, so the wallet pays whatever this is — you can cancel free")
+        : mbar("Matches what you asked", r.p_match, .25, r.p_match >= .8 ? "var(--ok)" : r.p_match >= .25 ? "var(--warn)" : "var(--bad)", "P(match) · final sale: below 25% declines · above that, pays if expected loss ≤ £10, else asks you")}
+      ${mbar("Trying to trick your agent", r.p_injection, .8, inj ? "var(--bad)" : "var(--tx-3)", "P(injection) · at 80%+ the merchant is blocked")}</div>`;
+  const u = r.undo || {};
+  const money = `<div class="sec"><h4><span>Money & undo</span></h4><dl class="kv">
+      <dt>Undo terms</dt><dd>${u.window_hours ? `free cancel · ${windowText(u.window_hours)} · ${gbp(u.fee_pence)} fee` : "final sale — no undo"}</dd>
+      ${r.window_ends_at ? `<dt>Undo until</dt><dd>${new Date(r.window_ends_at).toLocaleString("en-GB", {day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"})}</dd>` : ""}
+      ${r.undo_cost_pence != null ? `<dt>Cost to undo</dt><dd>${gbp(r.undo_cost_pence)}</dd>` : ""}
+      ${u.window_hours ? `<dt>Why it could pay</dt><dd>undoable — free cancel, so no match floor or £10 limit</dd>` : ""}
+      ${r.expected_loss_pence != null && !u.window_hours ? `<dt>Expected loss</dt><dd><span class="${r.expected_loss_pence > 1000 ? "warn-t" : ""}">${gbp(r.expected_loss_pence)}</span> <span class="dim">/ £10.00 auto limit${r.expected_loss_pence > 1000 ? " · over" : ""}</span></dd>` : ""}
+      <dt>Rule</dt><dd>${esc(r.rule)}</dd>
+      <dt>Stripe</dt><dd>${r.payment_id ? `${esc(r.payment_id)} · ${esc(r.stripe_status)} · ${r.payment_mode === "hold" ? "card hold, not captured" : "charged"}` : "no payment made"}</dd></dl></div>`;
+  const fu = r.facts_used || [];
+  const factsSec = blocked || !fu.length ? "" : `<div class="sec"><h4><span>Signed memories used</span><span>${fu.length} of ${total}${(r.facts_method || "cognee") === "cognee" ? ", chosen by Cognee" : ""}</span></h4>
+      <div class="chips">${fu.map(f => `<span class="fchip"><b>✓</b>${esc(factText(f))}</span>`).join("")}</div>
+      <div style="margin-top:10px"><span class="linkbtn" data-mem>View in memory graph →</span></div></div>`;
+  const cited = ex && (ex.cited || []);
+  const cognee = blocked || !ex || !ex.answer ? "" : `<div class="sec"><h4><span>What your wallet remembered</span><span class="tagc">Cognee</span></h4><div class="cognee">${esc(ex.answer)}</div>
+      <div class="edges">${(cited || []).map(c => typeof c === "string" ? `<span class="edge">${esc(c)}</span>` : `<span class="edge">${esc(c.source || c.subject || "George")} → <b>${esc(c.relationship_name || c.relation || "")}</b> → ${esc(c.target ?? c.object ?? "")} <span class="ok-t">✓</span></span>`).join("")}</div></div>`;
+  const sig = si && si.signature;
+  const signed = `<div class="sec"><h4><span>Signed request</span>${si ? '<span class="ok-t">✓ verified</span>' : ""}</h4><dl class="kv">
+      <dt>Request</dt><dd>“${esc(r.request || sip.request || "")}”</dd>${(r.max_pence || sip.max_pence) ? `<dt>Limit</dt><dd>${gbp(r.max_pence || sip.max_pence)}</dd>` : ""}${sip.expires_at ? `<dt>Expires</dt><dd>${esc(new Date(sip.expires_at).toLocaleString("en-GB", {hour: "2-digit", minute: "2-digit", day: "numeric", month: "short"}))}</dd>` : ""}<dt>Intent hash</dt><dd style="word-break:break-all">${esc(r.intent_hash)}</dd><dt>Cart signature</dt>${blocked ? `<dd class="dim">not checked — merchant blocked first</dd>` : r.signature_ok == null ? `<dd class="dim">not checked</dd>` : `<dd class="${r.signature_ok ? "ok-t" : "bad-t"}">signed by ${esc(r.merchant_name || r.merchant_id)} ${r.signature_ok ? "✓" : "✕"}</dd>`}</dl>
+      ${sig ? `<div class="sig">ed25519 · user-george · ${esc(sig)}</div>` : ""}</div>`;
+  const traceSec = (r.trace || []).length ? `<div class="sec"><h4><span>How the wallet checked</span><span>${traceTotal(r.trace)} ms</span></h4>${checkRows(r.trace)}</div>` : "";
+  const ag = r.agent_id ? `<a class="btn ghost" href="/agents#agent=${encodeURIComponent(r.agent_id)}${r.run_id ? "&run=" + encodeURIComponent(r.run_id) : ""}">Agent trace →</a>` : "";
+  $("#drawer").innerHTML = `<div class="dh" data-k="${k}"><h3>${esc(r.merchant_name || r.merchant_id)}</h3><span class="pill ${k}">${LABEL[k]}</span><span class="spacer"></span>${ag}<button class="btn ghost" data-close>Close <span class="kbd">Esc</span></button></div>
+  <div class="db sheet">
+    <div class="hero">${it.image ? `<img src="${esc(it.image)}" alt="">` : "<div></div>"}<div><div class="dim">${esc(it.title || "")}${r.agent_id ? " · via " + esc(r.agent_id) : ""}</div>
+      <div class="amt ${["decline", "block", "done"].includes(k) ? "dim" : ""}">${["decline", "block", "done"].includes(k) ? "£0.00" : gbp(amt)}</div>
+      <div class="muted" style="margin-top:4px">${k === "hold" ? "On hold, not charged" : k === "pay" ? "Charged" : k === "ask" ? "Not charged — waiting for you" : "Nothing charged"}${r.window_ends_at && ["pay", "hold"].includes(k) ? ` · undo until ${fmtDay(r.window_ends_at)}` : u.window_hours ? "" : " · final sale"}</div>
+      ${acts ? `<div class="sheet-acts">${acts}</div>` : ""}</div></div>
+    <div class="sec"><h4><span>Why</span>${inj ? '<span class="bad-t">prompt injection</span>' : ""}</h4><div class="why">${esc(whyText(r, facts, blockEntry))}</div></div>
+    ${record}${compare}
+    <div class="cols"><div class="col">${scores}${money}${factsSec}${cognee}</div><div class="col">${traceSec}${signed}</div></div>
+  </div>`;
 }
-$("scrim").onclick = closeSheet;
-$("sheetClose").onclick = closeSheet;
-addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
-$("signBtn").onclick = () => openSheet("sign");
+function openSheet(id) { S.sheet = id; renderSheet(); $("#drawer").classList.add("on"); $("#scrim").classList.add("on"); }
+function closeDrawer() { S.sheet = null; $("#drawer").classList.remove("on"); $("#scrim").classList.remove("on"); }
 
-function wireSign() {
-  $("signForm").onsubmit = async (e) => {
-    e.preventDefault();
-    const btn = e.target.querySelector("button"); btn.disabled = true;
-    try {
-      const res = await fetch("/api/intent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ request: $("fReq").value.trim(), max_pence: Math.round(Number($("fMax").value) * 100) }) });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j?.detail || res.status);
-      $("tokenVal").textContent = j.token; $("tokenBox").classList.add("show");
-      $("copyTok").onclick = async () => { try { await navigator.clipboard.writeText(j.token); toast("Token copied"); } catch { toast("Couldn't copy"); } };
-      toast("Request signed");
-      poll();
-    } catch (err) { toast("Couldn't sign: " + err.message, true); }
-    btn.disabled = false;
-  };
+/* ---------------- memory graph ---------------- */
+function renderMemory() {
+  const G = graphModel(), rel = G.relevant, rows = ((S.audit || {}).rows || []);
+  const edges = G.edges.map(e => ({...e, text: edgeText(e), group: groupOf(e.relation)}));
+  $("#relchip").innerHTML = rel.size ? `<span class="relchip">● ${rel.size} of ${edges.length} relevant to “${esc(G.request)}” · chosen by Cognee</span>` : `<span class="relchip off">Run the agents to see which memories a decision uses</span>`;
+  if (!edges.length) { $("#graph").innerHTML = `<div class="ghint" style="position:static;padding:20px">No signed memories yet.</div>`; $("#insp").innerHTML = ""; return; }
+  const W = 940, H = 660, cx = W / 2, cy = H / 2, RX = 240, RY = 290, D = Math.PI / 180;
+  const order = ["Money", "Clothing", "Food & health", "Tech", "Travel", "Home", "Other"];
+  const present = order.filter(g => edges.some(e => e.group === g));
+  // split groups into two fans with balanced edge counts, keeping Clothing on the right
+  const cnt = g => edges.filter(e => e.group === g).length;
+  let right = [], left = [], rc = 0, half = edges.length / 2;
+  present.forEach(g => { if (rc < half && (rc + cnt(g) <= half + 3 || !right.length)) { right.push(g); rc += cnt(g); } else left.push(g); });
+  if (!left.length && right.length > 1) left.push(right.pop());
+  const fans = [{groups: right, a0: -60, a1: 60}, {groups: left, a0: 240, a1: 120}].filter(f => f.groups.length);
+  const groups = fans.flatMap(f => f.groups), pos = {}, glab = [];
+  fans.forEach(f => { const n = f.groups.reduce((x, g) => x + cnt(g), 0), gap = 1.1, slots = n + gap * (f.groups.length - 1), step = (f.a1 - f.a0) / slots; let k = 0;
+    f.groups.forEach(g => { const es = edges.filter(e => e.group === g), s0 = k;
+      es.forEach(e => { const a = (f.a0 + step * (k + .5)) * D; pos[e.id] = {a, x: cx + Math.cos(a) * RX, y: cy + Math.sin(a) * RY}; k++; });
+      glab.push({g, a: (f.a0 + step * ((s0 + k) / 2)) * D}); k += gap; }); });
+  const sel = S.mem;
+  let svg = `<svg viewBox="0 0 ${W} ${H}">`;
+  edges.forEach(e => { const q = pos[e.id], c = Math.cos(q.a), sN = Math.sin(q.a); const x0 = cx + c * 34, y0 = cy + sN * 34, x1 = q.x - c * 6, y1 = q.y - sN * 6;
+    const on = rel.has(e.id), hot = sel === e.id;
+    svg += `<line class="e ${on ? "rel" : ""}" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" style="${hot && !on ? "stroke:#fff;opacity:1;" : ""}${!on && rel.size && !hot ? "opacity:.6" : ""}"/>`;
+    if (on) svg += `<line class="e flow" x1="${x1}" y1="${y1}" x2="${x0}" y2="${y0}"/>`; });
+  glab.forEach(({g, a}) => { const x = cx + Math.cos(a) * RX * .74, y = cy + Math.sin(a) * RY * .74, w = g.length * 8.4 + 18;
+    svg += `<rect x="${x - w / 2}" y="${y - 9}" width="${w}" height="16" rx="4" fill="#0e0e11" stroke="#1d1d23"/><text class="grp" x="${x}" y="${y + 3}" text-anchor="middle">${esc(g)}</text>`; });
+  edges.forEach(e => { const q = pos[e.id], on = rel.has(e.id), c = Math.cos(q.a), sN = Math.sin(q.a);
+    const tx = cx + c * RX * .5, ty = cy + sN * RY * .5, right = c > 0;
+    svg += `<g class="n ${on ? "rel" : ""} ${sel === e.id ? "sel" : ""}" data-e="${esc(e.id)}">
+      <g class="${on ? "rel" : ""}"><circle class="tickbg" cx="${tx}" cy="${ty}" r="6.5" ${e.verified === false ? 'style="stroke:var(--bad)"' : ""}/><text class="tick" x="${tx}" y="${ty + 3}" text-anchor="middle" ${e.verified === false ? 'style="fill:var(--bad)"' : ""}>${e.verified === false ? "✕" : "✓"}</text></g>
+      <rect x="${right ? q.x - 8 : q.x - 150}" y="${q.y - 10}" width="158" height="20" fill="transparent"/><circle class="d" cx="${q.x}" cy="${q.y}" r="${on ? 5.5 : 4.5}"/>
+      <text x="${q.x + (right ? 13 : -13)}" y="${q.y + 4}" text-anchor="${right ? "start" : "end"}">${esc(e.text.length > 26 ? e.text.slice(0, 25) + "…" : e.text)}</text></g>`; });
+  svg += `<g class="hub"><circle cx="${cx}" cy="${cy}" r="30" fill="url(#hubg)"/><circle cx="${cx}" cy="${cy}" r="30" fill="none" stroke="rgba(255,255,255,.25)"/>
+    <text x="${cx}" y="${cy + 5}" text-anchor="middle">George</text><rect x="${cx - 74}" y="${cy + 40}" width="148" height="16" rx="4" fill="#0e0e11"/><text class="s" x="${cx}" y="${cy + 52}" text-anchor="middle">user-george · ${edges.length} signed</text></g>
+    <defs><linearGradient id="hubg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FAD3DE"/><stop offset=".5" stop-color="#F386A1"/><stop offset="1" stop-color="#C98BD6"/></linearGradient></defs></svg>`;
+  $("#graph").innerHTML = svg + `<div class="ghint">hover or click a memory · every edge is signed by user-george and verified ✓</div>`;
+  const e = edges.find(x => x.id === sel) || edges.find(x => rel.has(x.id)) || edges[0];
+  const on = rel.has(e.id), usedBy = on ? rows.filter(r => r.request === G.request && r.decision !== "block").length : 0;
+  $("#insp").innerHTML = `<div class="sec"><h4><span>Signed memory</span><span class="${e.verified !== false ? "ok-t" : "bad-t"}">${e.verified !== false ? "✓ verified" : "✕ invalid"}</span></h4>
+    <div class="big">${esc(e.text)}</div>
+    <div class="trip">George → <b>${esc(e.relation)}</b> → ${esc(e.object)}</div>
+    <dl class="kv">${e.signed_at ? `<dt>Signed</dt><dd>${new Date(e.signed_at).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"})}</dd>` : ""}<dt>Signer</dt><dd>${esc(e.signer || "user-george")}</dd><dt>Group</dt><dd>${esc(e.group)}</dd>
+    <dt>Used in</dt><dd>${on ? `<span style="color:#FFC9D7">“${esc(G.request)}”</span><br>${usedBy} decisions` : "not relevant to the latest request"}</dd></dl>
+    ${e.signature ? `<div class="sig">${esc(e.signature)}</div>` : ""}</div>
+    <div class="mlist">${groups.map(g => `<div class="mgh">${esc(g)}</div>` + edges.filter(x => x.group === g).map(x => `<div class="mli ${rel.has(x.id) ? "rel" : ""} ${x.id === e.id ? "sel" : ""}" data-e="${esc(x.id)}"><span class="v">${rel.has(x.id) ? "●" : "✓"}</span>${esc(x.text)}<span class="r">${esc(x.relation)}</span></div>`).join("")).join("")}</div>`;
 }
+function setWTab(t) { S.wtab = t; document.querySelectorAll("#wtabs button").forEach(b => b.classList.toggle("on", b.dataset.wtab === t));
+  $("#w-overview").classList.toggle("on", t === "overview"); $("#w-memory").classList.toggle("on", t === "memory"); if (t === "memory") renderMemory();
+  history.replaceState(null, "", t === "memory" ? "#memory" : location.pathname + location.search); }
 
-/* ---------- actions ---------- */
-let toastT;
-function toast(msg, bad) {
-  const t = $("toast");
-  t.innerHTML = (bad ? I.x : I.check) + esc(msg);
-  t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2600);
+/* ---------------- polling ---------------- */
+let lastSig = "";
+async function pollAudit() {
+  try {
+    S.audit = await api("/api/audit");
+    const sig = JSON.stringify([S.audit.rows, S.audit.blocklist, S.audit.facts && S.audit.facts.length]);
+    if (sig !== lastSig) { lastSig = sig; renderWallet(); if (S.sheet) renderSheet(); if (S.wtab === "memory") renderMemory(); }
+  } catch (e) { /* server restarting */ }
 }
-async function post(url, body) {
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  let j = null; try { j = await res.json(); } catch {}
-  if (!res.ok) throw new Error((j && (j.detail || j.error)) || `HTTP ${res.status}`);
-  return j;
+let graphSig = "";
+async function pollGraph() {
+  try { S.graph = await api("/api/memory/graph"); } catch (e) { S.graph = S.graph || null; }
+  const sig = JSON.stringify(S.graph);
+  if (sig !== graphSig) { graphSig = sig; renderWallet(); if (S.wtab === "memory") renderMemory(); }
 }
-document.addEventListener("click", async (e) => {
-  const u = e.target.closest("[data-undo]"), a = e.target.closest("[data-approve]"), dcl = e.target.closest("[data-decline]"), sg = e.target.closest("[data-open-sign]");
-  if (sg) { e.stopPropagation(); openSheet("sign"); return; }
-  if (u) {
-    e.stopPropagation();
-    const pid = u.dataset.undo; if (STATE.busy.has(pid)) return;
-    STATE.busy.add(pid); u.disabled = true; u.innerHTML = '<span class="spin"></span>';
-    try { const j = await post("/api/undo", { payment_id: pid }); toast(j?.status === "canceled" ? "Undone — hold released" : j?.status === "refunded" ? "Undone — refunded" : "Undone"); }
-    catch (err) { toast("Undo failed: " + err.message, true); }
-    STATE.busy.delete(pid); poll(); return;
-  }
-  if (a || dcl) {
-    e.stopPropagation();
-    const id = (a || dcl).dataset.approve || (a || dcl).dataset.decline; if (STATE.busy.has(id)) return;
-    STATE.busy.add(id); render();
-    try { const j = await post("/api/decide", { row_id: id, approve: !!a }); toast(a ? (j?.decision === "pay" ? `Approved — paid ${gbp(total(j))}` : "Couldn't pay") : "Declined — nothing paid"); }
-    catch (err) { toast(err.message, true); }
-    STATE.busy.delete(id); poll(); return;
-  }
-  const row = e.target.closest(".row, .ask");
-  if (row && row.dataset.key) openSheet("row", row.dataset.key);
+async function pollRun() {
+  try { S.run = await api("/api/runs/latest"); } catch (e) { S.run = null; }
+  const running = S.run && (S.run.agents || []).some(a => a.status === "running");
+  const ms = runElapsed(S.run);
+  setLive(running, running ? "Live" : S.run ? "Complete" : "Idle", ms);
+  $("#wlive").classList.toggle("on", !!running);
+  return running;
+}
+async function loop() { await Promise.all([pollAudit(), pollRun()]); setTimeout(loop, 1000); }
+let gTick = 0;
+setInterval(() => { if (++gTick % 5 === 0 || (S.run && (S.run.agents || []).some(a => a.status === "running"))) pollGraph(); }, 1000);
+TOP.onRun = () => { toast("Run started — 6 agents"); pollRun(); };
+TOP.onReset = () => { S.seenRows = null; lastSig = ""; closeDrawer(); pollAudit(); pollRun(); pollGraph(); };
+
+/* ---------------- interactions ---------------- */
+async function decide(id, approve) {
+  try { await api("/api/decide", {body: {row_id: id, approve}}); toast(approve ? "Approved" : "Declined"); } catch (e) { toast("Failed: " + e.message); }
+  lastSig = ""; pollAudit();
+}
+async function undo(pid) {
+  try { const r = await api("/api/undo", {body: {payment_id: pid}}); toast("Undone · " + (r && r.status || "ok")); } catch (e) { toast("Undo failed: " + e.message); }
+  lastSig = ""; pollAudit();
+}
+$("#scrim").onclick = closeDrawer;
+document.addEventListener("click", e => {
+  const d = e.target.closest("[data-decide]"); if (d) { e.stopPropagation(); return decide(d.dataset.id, d.dataset.decide === "1"); }
+  const u = e.target.closest("[data-undo]"); if (u) return undo(u.dataset.undo);
+  if (e.target.closest("[data-close]")) return closeDrawer();
+  if (e.target.closest("[data-mem2]")) return setWTab("memory");
+  if (e.target.closest("[data-mem]")) { closeDrawer(); return setWTab("memory"); }
+});
+$("#activity").addEventListener("click", e => { if (e.target.closest("[data-decide],a")) return; const r = e.target.closest(".row"); if (r) openSheet(r.dataset.row); });
+document.querySelectorAll("#wtabs button").forEach(b => b.onclick = () => setWTab(b.dataset.wtab));
+$("#graph").addEventListener("click", e => { const n = e.target.closest("[data-e]"); if (n) { S.mem = n.dataset.e; renderMemory(); } });
+$("#graph").addEventListener("mouseover", e => { const n = e.target.closest("[data-e]"); if (n && n.dataset.e !== S.mem) { S.mem = n.dataset.e; renderMemory(); } });
+$("#insp").addEventListener("click", e => { const n = e.target.closest("[data-e]"); if (n) { S.mem = n.dataset.e; renderMemory(); } });
+document.addEventListener("keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === "escape") closeDrawer();
+  else if (k === "m") setWTab(S.wtab === "memory" ? "overview" : "memory");
 });
 
-/* ---------- countdowns ---------- */
-function tick() {
-  const rows = STATE.data?.rows || []; const now = Date.now();
-  document.querySelectorAll("[data-ring]").forEach((el) => {
-    const r = rows.find((x) => x.id === el.dataset.ring); if (!r) return;
-    const end = ts(r.window_ends_at)?.getTime() || 0; const span = Number(r.undo?.window_hours || 0) * 36e5;
-    const frac = span ? Math.max(0, Math.min(1, (end - now) / span)) : 0;
-    el.querySelector(".val").setAttribute("stroke-dashoffset", String(100.53 * (1 - frac)));
-    const s = left(end - now).short; const sp = el.querySelector("span"); if (sp.textContent !== s) sp.textContent = s;
-  });
-  document.querySelectorAll("[data-left]").forEach((el) => {
-    const r = rows.find((x) => x.id === el.dataset.left); if (!r) return;
-    let t = left((ts(r.window_ends_at)?.getTime() || 0) - now).long; if (el.dataset.compact) t = t.replace(" to undo", ""); if (el.textContent !== t) el.textContent = t;
-  });
-}
-setInterval(tick, 1000);
-
-/* ---------- main loop ---------- */
-function render() {
-  const d = STATE.data; if (!d) return;
-  const rows = Array.isArray(d.rows) ? d.rows : [];
-  if (Array.isArray(d.facts) && d.facts.length) STATE.facts = d.facts;
-  const blockedMap = Object.fromEntries((d.blocklist || []).map((b) => [b.merchant_id, b]));
-  renderHero(rows);
-  renderMandate(d);
-  renderMemories(STATE.facts);
-  renderBlocked(d.blocklist || []);
-  renderFeed(rows, blockedMap);
-  renderSheet();
-  for (const r of rows) STATE.seen.add(r.id);
-  STATE.firstLoad = false;
-  tick();
-}
-let inflight = false;
-async function poll() {
-  if (inflight) return; inflight = true;
-  try {
-    const res = await fetch("/api/audit", { cache: "no-store" });
-    const txt = await res.text();
-    $("live").classList.remove("off");
-    if (txt !== STATE.raw) { STATE.raw = txt; STATE.data = JSON.parse(txt) || {}; render(); }
-  } catch { $("live").classList.add("off"); }
-  inflight = false;
-}
-const h = new Date().getHours();
-$("greet").textContent = `${h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"}, George`;
-poll(); setInterval(poll, 1000);
+(async () => {
+  await Promise.all([pollAudit(), pollGraph(), pollRun()]);
+  renderWallet();
+  if (location.hash === "#memory") setWTab("memory");
+  const fromHash = () => { const m = location.hash.match(/row=([^&]+)/); if (m) { setWTab("overview"); openSheet(decodeURIComponent(m[1])); } else if (location.hash === "#memory") { closeDrawer(); setWTab("memory"); } };
+  fromHash(); window.addEventListener("hashchange", fromHash);
+  setTimeout(loop, 1000);
 })();
 </script>
 </body>
