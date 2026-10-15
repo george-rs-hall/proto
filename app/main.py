@@ -1,20 +1,41 @@
 import app.config  # noqa: F401  (load .env first)
 
+import asyncio
+import logging
+import secrets
+import time
+import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
-from app import merchants
+from app import evaluator, memory, merchants, money, policy, signing
+from app.models import CartOffer, Intent
+
+log = logging.getLogger("wallet")
 
 ROOT = Path(__file__).resolve().parent.parent
 INDEX = ROOT / "static" / "index.html"
+USER_KEY = "user-george"
+INTENT_TTL_HOURS = 24
+STRIPE_REFRESH_SECONDS = 5
 
 app = FastAPI()
 app.include_router(merchants.router)
 
-STATE = {"intent": None, "intent_hash": None, "rows": []}
+STATE = {
+    "intent": None,          # signed intent dict
+    "intent_hash": None,
+    "explanation": None,
+    "facts": [],             # last loaded verified facts
+    "rows": [],
+    "rows_by_id": {},
+    "stripe_refreshed_at": 0.0,
+}
+BG_TASKS: set = set()
 
 
 class IntentIn(BaseModel):
@@ -36,51 +57,285 @@ class DecideIn(BaseModel):
     approve: bool
 
 
-def placeholder_row() -> dict:
-    return {
-        "id": "row-0", "at": None, "merchant_id": None, "intent_hash": None, "items": [],
+def now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def parse_ts(s: str) -> datetime:
+    dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def spawn(coro):
+    task = asyncio.create_task(coro)
+    BG_TASKS.add(task)
+    task.add_done_callback(BG_TASKS.discard)
+    return task
+
+
+async def load_facts() -> list[dict]:
+    try:
+        facts = await memory.load_verified_facts()
+        STATE["facts"] = facts
+        return facts
+    except Exception:
+        log.exception("load_verified_facts failed")
+        return STATE["facts"]
+
+
+async def compute_explanation(request: str, intent_hash: str):
+    try:
+        result = await memory.explain(request)
+        if STATE["intent_hash"] == intent_hash:
+            STATE["explanation"] = result
+    except Exception:
+        log.exception("explain failed")
+
+
+async def get_blocklist() -> dict:
+    try:
+        return await memory.blocklist()
+    except Exception:
+        log.exception("blocklist failed")
+        return {}
+
+
+def new_row(merchant_id, intent_hash, payload) -> dict:
+    row = {
+        "id": f"row-{uuid.uuid4().hex[:8]}", "at": now_utc().isoformat(), "merchant_id": merchant_id,
+        "intent_hash": intent_hash, "items": (payload or {}).get("items", []),
         "signature_ok": None, "check_failure": None, "facts_used": [], "p_match": None, "p_injection": None,
-        "eval_source": None, "undo": {"window_hours": None, "cancel_url": None, "fee_pence": None},
+        "eval_source": None,
+        "undo": dict((payload or {}).get("undo") or {"window_hours": None, "cancel_url": None, "fee_pence": None}),
         "undo_cost_pence": None, "expected_loss_pence": None, "decision": None, "rule": None,
         "payment_id": None, "payment_mode": None, "stripe_status": None, "window_ends_at": None,
     }
+    return row
+
+
+def store_row(row: dict) -> dict:
+    STATE["rows"].append(row)
+    STATE["rows_by_id"][row["id"]] = row
+    return row
+
+
+async def do_pay(row: dict, signed_offer: dict, p_match: float, rule: str) -> None:
+    try:
+        res = await asyncio.to_thread(money.pay, signed_offer, p_match=p_match if p_match is not None else 0.0, rule=rule)
+    except Exception as e:
+        log.exception("money.pay failed")
+        row["decision"] = "decline"
+        row["rule"] = f"{rule} (payment failed: {e})"
+        return
+    window = int((row["undo"] or {}).get("window_hours") or 0)
+    paid_at = now_utc()
+    row["decision"] = "pay"
+    row["rule"] = rule
+    row["payment_id"] = res.get("payment_id")
+    row["payment_mode"] = res.get("mode")
+    row["stripe_status"] = res.get("status")
+    row["window_ends_at"] = (paid_at + timedelta(hours=window)).isoformat() if window > 0 else None
+    if row["payment_id"]:
+        merchants.register_payment(row["payment_id"], row["merchant_id"], window, paid_at)
+
+
+def check_offer(signed_intent: dict, signed_offer: dict, intent_hash: str) -> tuple[bool, str | None, dict | None]:
+    """Returns (signature_ok, check_failure, offer_payload)."""
+    try:
+        intent = Intent(**signed_intent["payload"])
+    except (KeyError, TypeError, ValidationError):
+        return False, "malformed intent", None
+    try:
+        offer = CartOffer(**signed_offer["payload"])
+    except (KeyError, TypeError, ValidationError):
+        return False, "malformed offer", None
+    intent_ok = signing.verify(signed_intent, USER_KEY)
+    offer_ok = offer.merchant_id in merchants.MERCHANTS and signing.verify(signed_offer, f"merchant-{offer.merchant_id}")
+    sig_ok = intent_ok and offer_ok
+    now = now_utc()
+    if not intent_ok:
+        return sig_ok, "intent signature invalid", offer.model_dump()
+    if not offer_ok:
+        return sig_ok, f"cart signature invalid for merchant-{offer.merchant_id}", offer.model_dump()
+    if offer.intent_hash != intent_hash:
+        return sig_ok, "cart intent_hash does not match the signed intent", offer.model_dump()
+    try:
+        if parse_ts(intent.expires_at) < now:
+            return sig_ok, "signed intent expired", offer.model_dump()
+        if parse_ts(offer.expires_at) < now:
+            return sig_ok, "cart offer expired", offer.model_dump()
+    except ValueError:
+        return sig_ok, "bad expiry timestamp", offer.model_dump()
+    total = sum(i.price_pence for i in offer.items)
+    if total > intent.max_pence:
+        return sig_ok, f"cart total £{total / 100:.2f} > signed cap £{intent.max_pence / 100:.2f}", offer.model_dump()
+    return sig_ok, None, offer.model_dump()
 
 
 @app.post("/api/intent")
-def post_intent(body: IntentIn):
-    return {"token": "", "intent_hash": "", "signed_intent": {"payload": {}, "signature": ""}}
+async def post_intent(body: IntentIn):
+    payload = {
+        "request": body.request, "max_pence": body.max_pence,
+        "expires_at": (now_utc() + timedelta(hours=INTENT_TTL_HOURS)).isoformat(),
+        "nonce": secrets.token_hex(8),
+    }
+    signed_intent = signing.sign(payload, USER_KEY)
+    intent_hash = signing.sha256_hex(signed_intent)
+    STATE.update(intent=signed_intent, intent_hash=intent_hash, explanation=None, rows=[], rows_by_id={})
+    spawn(compute_explanation(body.request, intent_hash))
+    spawn(load_facts())
+    return {"token": signing.encode_token(signed_intent), "intent_hash": intent_hash, "signed_intent": signed_intent}
+
+
+def decode(token: str) -> dict:
+    try:
+        signed_intent = signing.decode_token(token)
+        assert isinstance(signed_intent, dict) and "payload" in signed_intent
+        return signed_intent
+    except Exception:
+        raise HTTPException(400, "bad intent token")
 
 
 @app.get("/api/offers")
 def get_offers(token: str):
-    return {"offers": []}
+    signed_intent = decode(token)
+    intent_hash = signing.sha256_hex(signed_intent)
+    return {"offers": [merchants.make_offer(m, intent_hash) for m in merchants.MERCHANTS]}
 
 
 @app.post("/api/pay")
-def post_pay(body: PayIn):
-    return placeholder_row()
+async def post_pay(body: PayIn):
+    signed_intent = decode(body.token)
+    intent_hash = signing.sha256_hex(signed_intent)
+    if STATE["intent"] is None:
+        STATE.update(intent=signed_intent, intent_hash=intent_hash)
+        req = (signed_intent.get("payload") or {}).get("request", "")
+        spawn(compute_explanation(req, intent_hash))
+    signed_offer = body.signed_offer or {}
+    raw_payload = signed_offer.get("payload") if isinstance(signed_offer.get("payload"), dict) else {}
+    merchant_id = raw_payload.get("merchant_id")
+    row = new_row(merchant_id, intent_hash, raw_payload)
+
+    # 1. blocklist: stop before anything else, evaluator not called
+    blocked = await get_blocklist()
+    if merchant_id in blocked:
+        row.update(policy.decide(blocked=True, check_failure=None, p_match=None, p_injection=None,
+                                 offer=signed_offer, refused_undo=False))
+        return store_row(row)
+
+    # 2. signatures, hash, expiries, cap
+    sig_ok, failure, offer_payload = check_offer(signed_intent, signed_offer, intent_hash)
+    row["signature_ok"] = sig_ok
+    row["check_failure"] = failure
+    if failure:
+        row.update(policy.decide(blocked=False, check_failure=failure, p_match=None, p_injection=None,
+                                 offer=signed_offer, refused_undo=False))
+        return store_row(row)
+
+    # 3. verified facts
+    facts = await load_facts()
+    row["facts_used"] = [{"relation": f.get("relation"), "object": f.get("object")} for f in facts]
+
+    # 4. evaluator
+    request = signed_intent["payload"]["request"]
+    items = offer_payload["items"]
+    try:
+        sentences = evaluator.render_facts(facts)
+        probs = await asyncio.to_thread(evaluator.evaluate, request, sentences, items)
+    except Exception as e:
+        log.exception("evaluator failed")
+        row.update(decision="decline", rule=f"evaluator unavailable: {e}")
+        return store_row(row)
+    p_match, p_injection = probs.get("p_match"), probs.get("p_injection")
+    row.update(p_match=p_match, p_injection=p_injection, eval_source=probs.get("source"))
+
+    # 5. policy
+    try:
+        refused = await memory.has_refused_undo(merchant_id)
+    except Exception:
+        log.exception("has_refused_undo failed")
+        refused = False
+    decision = policy.decide(blocked=False, check_failure=None, p_match=p_match, p_injection=p_injection,
+                             offer=signed_offer, refused_undo=refused)
+    row.update(decision)
+
+    if p_injection is not None and p_injection >= policy.INJECTION_THRESHOLD:
+        try:
+            await memory.flag_injection(merchant_id, p_injection, signed_offer)
+        except Exception:
+            log.exception("flag_injection failed")
+
+    # 6. money
+    if row["decision"] == "pay":
+        await do_pay(row, signed_offer, p_match, row["rule"])
+    row["_signed_offer"] = signed_offer
+    store_row(row)
+    return public_row(row)
+
+
+def public_row(row: dict) -> dict:
+    return {k: v for k, v in row.items() if not k.startswith("_")}
 
 
 @app.post("/api/undo")
-def post_undo(body: UndoIn):
-    return {"payment_id": body.payment_id, "status": "unknown"}
+async def post_undo(body: UndoIn):
+    row = next((r for r in STATE["rows"] if r.get("payment_id") == body.payment_id), None)
+    merchant_id = row["merchant_id"] if row else (merchants.PAYMENTS.get(body.payment_id) or {}).get("merchant_id")
+    if not merchant_id:
+        raise HTTPException(404, "unknown payment")
+    res = await merchants.cancel_payment(merchant_id, body.payment_id)
+    if row:
+        row["stripe_status"] = res.get("status")
+    return {"payment_id": body.payment_id, "status": res.get("status")}
 
 
 @app.post("/api/decide")
-def post_decide(body: DecideIn):
-    return placeholder_row()
+async def post_decide(body: DecideIn):
+    row = STATE["rows_by_id"].get(body.row_id)
+    if not row:
+        raise HTTPException(404, "unknown row")
+    if row["decision"] != "ask":
+        raise HTTPException(409, f"row decision is {row['decision']}, not ask")
+    if body.approve:
+        await do_pay(row, row.get("_signed_offer"), row["p_match"], "approved by user")
+    else:
+        row.update(decision="decline", rule="rejected by user")
+    return public_row(row)
+
+
+async def refresh_stripe():
+    for row in list(STATE["rows"]):
+        pid = row.get("payment_id")
+        if not pid:
+            continue
+        try:
+            row["stripe_status"] = await asyncio.to_thread(money.status, pid)
+        except Exception:
+            log.exception("stripe status failed for %s", pid)
 
 
 @app.get("/api/audit")
-def get_audit():
+async def get_audit():
+    if time.monotonic() - STATE["stripe_refreshed_at"] > STRIPE_REFRESH_SECONDS:
+        STATE["stripe_refreshed_at"] = time.monotonic()
+        spawn(refresh_stripe())
+    blocked = await get_blocklist()
     return {
         "intent": STATE["intent"],
         "intent_hash": STATE["intent_hash"],
-        "facts": [],
-        "explanation": None,
-        "rows": STATE["rows"],
-        "blocklist": [],
+        "facts": [{"relation": f.get("relation"), "object": f.get("object"), "signed_at": f.get("signed_at"),
+                   "verified": f.get("verified", True)} for f in STATE["facts"]],
+        "explanation": STATE["explanation"],
+        "rows": [public_row(r) for r in STATE["rows"]],
+        "blocklist": [{"merchant_id": m, "p_injection": (ev or {}).get("p_injection"),
+                       "signed_cart": (ev or {}).get("signed_cart"), "at": (ev or {}).get("at")}
+                      for m, ev in blocked.items()],
     }
+
+
+@app.on_event("startup")
+async def warm():
+    spawn(load_facts())
 
 
 @app.get("/")
