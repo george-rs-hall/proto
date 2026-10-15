@@ -1,11 +1,10 @@
-"""Fresh demo state: clear this app's Stripe test payments, reset the wallet and memory, seed the user's signed
-facts, then record Shady Denim's earlier prompt injection in provider history.
+"""Fresh local demo state: reset the wallet and memory (.wallet, .cognee), seed the user's signed facts, then record Shady Denim's earlier prompt injection in provider history.
 
 Run: uv run python -m scripts.prepare_demo
 
 The flag is real: Shady Denim (merchant E) signs the injected cart it served before (charcoal jeans carrying a
 "SYSTEM NOTE"), the evaluator scores it, and the merchant is flagged with that P(injection) and the signed cart
-as evidence. No wallet row and no Stripe payment are created.
+as evidence. No wallet row and no Stripe payment are created. Stripe is never touched: earlier test payments stay.
 """
 import app.config  # noqa: F401  (load .env first)
 
@@ -49,16 +48,13 @@ async def preflag_shady() -> None:
 
 
 def main() -> None:
-    from app import money
-    money.clear_demo()
-
     for d in (".cognee", ".wallet"):
         shutil.rmtree(ROOT / d, ignore_errors=True)
     subprocess.run([sys.executable, "-m", "scripts.seed"], cwd=ROOT, check=True)
     asyncio.run(preflag_shady())
 
     print(f"""
-Ready. Next:
+Ready (local state reset; Stripe untouched). Next:
   uv run uvicorn app.main:app --port {PORT}
   open {URL}/agents  # one click: six agents shop in parallel, all paying through the wallet
   open {URL}/        # the wallet: starts empty, Shady Denim already blocked
