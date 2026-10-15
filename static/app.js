@@ -100,6 +100,16 @@ function whyText(r, facts, blockEntry) {
   if (k === "done") return `You undid this purchase. Stripe status: ${r.stripe_status}.`;
   return r.rule || "";
 }
+/* the policy's decision as one plain line — a decline is a decision, not an error */
+function policyLine(r) {
+  const k = kind(r), w = r.undo && r.undo.window_hours;
+  if (k === "block") return "Blocked: merchant flagged for prompt injection";
+  if (k === "decline" && r.check_failure) return `Declined: ${String(r.check_failure).replace(/_/g, " ")} check failed`;
+  if (k === "decline" && isInj(r)) return `Declined by policy: ${pct(r.p_injection)} injection ≥ 80% · merchant blocked`;
+  if (k === "decline") return `Declined by policy: ${w ? "" : "final sale, "}${pct(r.p_match)} match < 25%`;
+  if (k === "ask") return `Your call: ${w ? "" : "final sale, "}expected loss ${gbp(r.expected_loss_pence)} > £10`;
+  return null;
+}
 /* paid/held only because undo is free: say so loudly */
 function lowMatch(r) {
   const k = kind(r), w = r.undo && r.undo.window_hours;
@@ -115,9 +125,8 @@ function rowSub(r, facts) {
   if (k === "ask") return `${w ? "Over the auto limit" : "Final sale"} · ${gbp(r.expected_loss_pence)} at risk`;
   if (k === "block") return "Blocked on past record";
   if (k === "done") return /refund/.test(r.stripe_status) ? "Refunded" : "Cancelled · nothing charged";
-  if (isInj(r)) return "Hidden instruction in listing · merchant blocked";
-  if (r.check_failure) return "Failed check: " + String(r.check_failure).replace(/_/g, " ");
-  if (bad[0]) return "Signed cart: " + bad[0][1];
+  if (isInj(r)) return policyLine(r).replace(" · merchant blocked", "") + " · hidden instruction, merchant blocked";
+  if (k === "decline") return policyLine(r) + (bad[0] ? " · " + bad[0][1] : "");
   return r.rule || "";
 }
 
@@ -140,9 +149,11 @@ function checkRows(trace, opts = {}) {
   return `<div class="checks">${(trace || []).map(c => { const skip = c.ok == null && /^skipped/i.test(c.detail || ""); let d = Math.max(0, Math.round((c.t_ms || 0) - prev)); prev = c.t_ms || prev;
     const span = sp.find(x => x.name === c.step || x.name === String(c.step).replace(/ /g, "_") || (x.attrs || {}).step === c.step);
     if (span && span.end_ms != null) d = Math.round(span.end_ms - span.start_ms);
-    const s = c.ok === true ? '<span class="ok-t">✓</span>' : c.ok === false ? '<span class="bad-t">✕</span>' : skip ? '<span class="dim">–</span>' : '<span class="warn-t">!</span>';
+    const pol = /^policy$/i.test(c.step);
+    const s = pol ? `<span class="${c.ok === true ? "ok-t" : c.ok === false ? "bad-t" : "warn-t"}">→</span>` : c.ok === true ? '<span class="ok-t">✓</span>' : c.ok === false ? '<span class="bad-t">✕</span>' : skip ? '<span class="dim">–</span>' : '<span class="warn-t">!</span>';
+    const det = pol ? String(c.detail || "").replace(/^(pay|decline|ask|block):\s*/i, (m, d) => ({pay: "Pay — ", decline: "Declined — ", ask: "Ask you — ", block: "Blocked — "})[d.toLowerCase()]) : c.detail;
     const jev = /^jev$/i.test(c.step), name = jev ? (opts.jevLong ? JEV_LONG : "Jev") : c.step;
-    return `<div class="cr ${skip ? "skip" : ""}"><span class="s">${s}</span><span class="nm" ${jev ? `title="${JEV_TIP}"` : ""}>${esc(name)}</span><span class="dt">${esc(pctify(c.detail))}</span><span class="ms">${skip ? "" : d + " ms"}</span></div>`; }).join("")}</div>`;
+    return `<div class="cr ${skip ? "skip" : ""}"><span class="s">${s}</span><span class="nm" ${jev ? `title="${JEV_TIP}"` : ""}>${esc(name)}</span><span class="dt">${esc(pctify(det))}</span><span class="ms">${skip ? "" : d + " ms"}</span></div>`; }).join("")}</div>`;
 }
 /* "P(match) 0.94" → "94% match", "p < 0.25" → "match < 25%" — one format for scores in UI copy */
 function pctify(t) {
@@ -153,7 +164,9 @@ function pctify(t) {
     .replace(/P\(inj(?:ection)?\)\s*(0?\.\d+|1(?:\.0+)?)/gi, (m, v) => `${Math.round(v * 100)}% injection`)
     .replace(/\bp\s*([<>≤≥]=?)\s*(0?\.\d+)/g, (m, op, v) => `match ${op} ${Math.round(v * 100)}%`)
     .replace(/(\d+%)\s*([<>≤≥]=?)\s*p\s*([<>≤≥]=?)\s*(0?\.\d+)/g, (m, a, op1, op2, v) => `${a} ${op1} match ${op2} ${Math.round(v * 100)}%`)
-    .replace(/(0?\.\d+)\s*([<>≤≥]=?)\s*p\b/g, (m, v, op) => `${Math.round(v * 100)}% ${op} match`);
+    .replace(/(0?\.\d+)\s*([<>≤≥]=?)\s*p\b/g, (m, v, op) => `${Math.round(v * 100)}% ${op} match`)
+    .replace(/(\d+% (?:match|injection))\s*([<>≤≥]=?)\s*(0?\.\d+|1(?:\.0+)?)(\s*floor)?/g, (m, a, op, v) => `${a} ${op} ${Math.round(v * 100)}%`)
+    .replace(/(\d+% match) · \1/g, "$1");
 }
 /* one date format: "today 19:20" or "15 Oct 2026" */
 function fmtDate(d, withTime) {
@@ -185,6 +198,7 @@ function verdictBig(row) {
 function verdict(row, facts) {
   const k = kind(row), amt = amountOf(row);
   return `<div class="verdict ${k}"><div class="big">${verdictBig(row)}</div><div class="amt">${k === "pay" || k === "hold" ? gbp(amt) : k === "ask" ? gbp(row.expected_loss_pence) + " at risk" : "£0.00"}</div>
+    ${lowMatch(row) ? `<div style="margin:8px 0 2px"><span class="lowchip">${esc(lowMatch(row))}</span></div>` : ""}
     <div class="why">${esc(whyText(row, facts))}</div>
     <div class="meta"><span>rule: ${esc(pctify(row.rule))}</span>${row.p_match != null ? `<span>${pct(row.p_match)} match</span>` : ""}${row.p_injection != null ? `<span>${pct(row.p_injection)} injection</span>` : ""}${row.payment_id ? `<span>stripe ${esc(row.payment_id)} · ${esc(row.stripe_status)}</span>` : ""}<span>${esc(row.id)}</span></div></div>`;
 }

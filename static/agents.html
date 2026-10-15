@@ -6,7 +6,7 @@
 <title>proto · Agents</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23FAD3DE%22/%3E%3Cstop offset=%22.5%22 stop-color=%22%23F386A1%22/%3E%3Cstop offset=%221%22 stop-color=%22%23C98BD6%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22url(%23g)%22/%3E%3Cg transform=%22translate(7 6)%22 fill=%22%232a0f1a%22%3E%3Cpath d=%22M2 0h5.2v20H2z%22/%3E%3Cpath d=%22M9.2 0H11a7 7 0 0 1 0 14H9.2z%22/%3E%3Ccircle cx=%2216.2%22 cy=%2218%22 r=%222%22/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -139,8 +139,8 @@ function renderGantt() {
           sub += `<i class="chk ${cls}" style="left:${s0}%;width:calc(${Math.max(e0 - s0, 0)}% - 1px);min-width:3px" title="${esc(c.step + " · " + c.detail)}"></i>`; });
         const jev = full.find(c => /jev/i.test(c.step)), failed = full.find(c => c.ok === false);
         // a policy "failure" is the decision itself — say what was decided rather than show an error ✕
-        const polFail = failed && /^policy$/i.test(failed.step);
-        const lab = row ? `wallet · <b>${traceTotal(full)} ms</b> · ${polFail ? `<span class="${kind(row) === "ask" ? "warn-t" : "bad-t"}">${esc(LABEL[kind(row)] || kind(row))} by policy: ${esc(pctify(row.rule))}</span>` : failed ? `<span class="bad-t">✕ ${esc(failed.step)}</span>` : jev ? esc(pctify(String(jev.detail || "").split(" · ")[0])) : ""}` : `wallet · checking…`;
+        const pline = row && policyLine(row);
+        const lab = row ? `wallet · <b>${traceTotal(full)} ms</b> · ${pline ? `<span class="${kind(row) === "ask" ? "warn-t" : "bad-t"}">${esc(pline)}</span>` : failed ? `<span class="bad-t">✕ ${esc(failed.step)}</span>` : lowMatch(row) ? `<span class="warn-t">${pct(row.p_match)} match · free to undo</span>` : jev ? esc(pctify(String(jev.detail || "").split(" · ")[0])) : ""}` : `wallet · checking…`;
         tr += `<div class="wsub" style="left:${x(sp.s)};width:${w(sp.s, sp.s + dur)}"><i class="conn"></i>${sub}<span class="wlab">${lab}</span></div>`;
       }
     });
