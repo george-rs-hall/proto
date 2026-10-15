@@ -423,16 +423,17 @@ footer { margin-top: 22px; color: var(--faint); font-size: 12px; text-align: cen
       var ok = !f || typeof f !== "object" || f.verified !== false;
       return '<span class="fact' + (ok ? "" : " bad") + '"><b>' + esc(factLabel(f)) + '</b><span class="sig">' + (ok ? "✓ signed" : "✗ bad signature") + "</span></span>";
     }).join("") + "</div>" : '<div class="empty">No signed facts loaded yet.</div>';
-    if (d.intent && d.intent.request) {
-      html += '<div class="intent-now">Current intent: <b>' + esc(d.intent.request) + "</b>" +
-        (isNum(d.intent.max_pence) ? " · max <b>" + money(d.intent.max_pence) + "</b>" : "") +
+    var it = d.intent && (d.intent.payload || d.intent);
+    if (it && it.request) {
+      html += '<div class="intent-now">Current intent: <b>' + esc(it.request) + "</b>" +
+        (isNum(it.max_pence) ? " · max <b>" + money(it.max_pence) + "</b>" : "") +
         (d.intent_hash ? ' · <span class="mono">' + esc(shortHash(d.intent_hash)) + "</span>" : "") + "</div>";
     }
     setHTML($("facts"), html);
     var ex = d.explanation, eh = "";
     if (ex && (ex.answer || (Array.isArray(ex.cited) && ex.cited.length))) {
       eh = '<div class="explain"><div class="src">Cognee · why these facts</div>' +
-        (ex.answer ? "<p>" + esc(ex.answer) + "</p>" : "") +
+        (ex.answer ? "<p>" + esc(String(ex.answer).replace(/\*\*|__|^#+\s*/gm, "")) + "</p>" : "") +
         (Array.isArray(ex.cited) && ex.cited.length ? '<div class="edges">' + ex.cited.map(function (e) { return '<span class="edge">' + edgeLabel(e) + "</span>"; }).join("") + "</div>" : "") +
         "</div>";
     }
