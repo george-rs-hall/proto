@@ -1,0 +1,23 @@
+[project]
+name = "proto"
+version = "0.1.0"
+description = "Signed-intent check for agent payments"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "python-dotenv",
+    "stripe",
+    "cryptography",
+    "cognee==1.6.4",
+    "fastembed",
+    "typesafe-sdk==0.7.5",
+    "mcp",
+    "anthropic",
+    "httpx",
+    "pydantic",
+]
+
+[tool.uv]
+package = false
