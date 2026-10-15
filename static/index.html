@@ -225,7 +225,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 .thumb .ph img, .thumb .ph svg { width: 100%; height: 100%; object-fit: contain; display: block; }
 .thumb .ph svg { padding: 3px; }
-.thumb.dim .ph { filter: grayscale(.85); opacity: .65; }
+.thumb.dim .ph { filter: grayscale(.5); opacity: .8; }
 .av {
   width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
   color: #fff; font-size: 10.5px; font-weight: 750; letter-spacing: -.02em;
@@ -385,7 +385,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .cmp { background: var(--surface-2); border-radius: 16px; padding: 12px; border: 1px solid var(--hair); min-width: 0; }
 .cmp-h { font-size: 11.5px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
 .cmp-pic { height: 92px; border-radius: 12px; background: var(--thumb-bg); display: grid; place-items: center; overflow: hidden; margin-bottom: 8px; }
-.cmp-pic img, .cmp-pic svg { height: 100%; width: 100%; object-fit: contain; }
+.cmp-pic img, .cmp-pic svg { height: 92px; width: 100%; object-fit: contain; }
 .cmp-pic svg { padding: 8px; }
 .cmp-q { font-weight: 650; font-size: 14.5px; letter-spacing: -.015em; line-height: 1.3; }
 .checks { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 5px; font-size: 13px; }
@@ -786,7 +786,7 @@ function why(r, st, blockedMap) {
     case "blocked": {
       const ev = blockedMap[r?.merchant_id];
       const d = ev?.at ? fmtDate(ev.at) : "";
-      return { short: `Flagged for prompt injection${d ? ` on ${d}` : ""}`, long: `${esc(mName(r))} was caught hiding instructions for your agent${d ? ` on ${d}` : ""}. Your wallet stopped this before even looking at the cart.`, sub: "This cart might have been fine. A shop that tried to trick your agent once doesn't get a second chance." };
+      return { short: `Blocked on past record: flagged for injection${d ? ` on ${d}` : ""}`, long: `Blocked on past record, not this cart. ${esc(mName(r))} was caught hiding instructions for your agent${d ? ` on ${d}` : ""}. Your wallet stopped this before even looking at the cart.`, sub: "This cart might have been fine. A shop that tried to trick your agent once doesn't get a second chance." };
     }
     case "declined": {
       if ((r?.p_injection ?? 0) >= 0.8) {
@@ -1049,7 +1049,7 @@ function detailHTML(r, d) {
     </div></div>` : "";
   const blockedEv = st === "blocked" && blockedMap[r.merchant_id] ? (() => {
     const b = blockedMap[r.merchant_id]; const note = (b.signed_cart?.payload?.items || []).map((i) => i?.description).find(Boolean);
-    return `<div class="d-card"><h4>The record</h4><div class="dl"><dt>Flagged</dt><dd>${esc(fmtWhen(b.at))}</dd><dt>Injection likelihood</dt><dd class="num">${b.p_injection != null ? Math.round(b.p_injection * 100) + "%" : "—"}</dd></dl>${note ? `<div class="quote">Hidden in their signed cart: “${esc(note)}”</div>` : ""}<div class="meter-cap">Remembered in your wallet's memory graph (Cognee). This cart was never sent for checking.</div></div>`;
+    return `<div class="d-card"><h4>The record</h4><dl class="dl"><dt>Flagged</dt><dd>${esc(fmtWhen(b.at))}</dd><dt>Injection likelihood</dt><dd class="num">${b.p_injection != null ? Math.round(b.p_injection * 100) + "%" : "—"}</dd></dl>${note ? `<div class="quote">Hidden in their signed cart: “${esc(note)}”</div>` : ""}<div class="meter-cap">Remembered in your wallet's memory graph (Cognee). This cart was never sent for checking.</div></div>`;
   })() : "";
   const scores = r.p_match != null || r.p_injection != null ? `<div class="d-card"><h4>The wallet's check${r.eval_source ? `<span class="chip c-violet">${esc(r.eval_source === "jev" ? "Jev" : cap(r.eval_source))}</span>` : ""}</h4>
       ${meter("Matches what you asked", r.p_match, r.p_match >= 0.25 ? "var(--green)" : "var(--amber)", 0.25, "Below 25% the wallet won't pay")}

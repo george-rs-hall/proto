@@ -869,13 +869,17 @@ addEventListener("wheel", e => {
   if (e.deltaY < 0) stick = false;
   else if (innerHeight + scrollY >= document.body.scrollHeight - 260) stick = true;
 }, { passive: true });
-function follow() {
+function follow(keepAsk = true) {
   if (!stick) return;
   const turn = thread.lastElementChild;
   if (!turn) return;
   const comp = document.querySelector(".composer-wrap").getBoundingClientRect();
   const bottom = turn.getBoundingClientRect().bottom + scrollY;
-  const target = Math.max(0, bottom - (comp.top + 4));
+  let target = Math.max(0, bottom - (comp.top + 4));
+  // while agents work, keep the user's message in view above the lanes
+  const ask = turn.querySelector(".user-row");
+  const head = document.querySelector("header");
+  if (keepAsk && ask) target = Math.min(target, ask.getBoundingClientRect().top + scrollY - (head ? head.getBoundingClientRect().bottom : 0) - 16);
   if (target > scrollY + 2) scrollTo({ top: target, behavior: "smooth" });
 }
 
@@ -954,7 +958,7 @@ async function send(message) {
     if ((st.agents || []).length && st.agents.every(a => a.status !== "running")) {
       const s = summaryCard([...lanes.values()]);
       turn.appendChild(s);
-      setTimeout(follow, 50);
+      setTimeout(() => follow(false), 1200);
       break;
     }
   }
